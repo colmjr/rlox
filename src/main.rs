@@ -1,7 +1,4 @@
-use rlox::{
-    error::LoxError,
-    scanner::{Scanner, Token},
-};
+use rlox::{error::LoxError, scanner::Scanner};
 
 use std::io::Write;
 
@@ -23,6 +20,8 @@ fn run_file(path: &str) {
         std::process::exit(74); // IO Error
     });
 
+    let source: Vec<char> = source.chars().collect();
+
     if let Err(err) = run(&source) {
         for e in &err {
             eprintln!("{e}");
@@ -40,7 +39,8 @@ fn run_prompt() {
         match std::io::stdin().read_line(&mut line) {
             Ok(0) => break, // C-d
             Ok(_) => {
-                if let Err(err) = run(&line) {
+                let chars: Vec<char> = line.chars().collect();
+                if let Err(err) = run(&chars) {
                     for e in &err {
                         eprintln!("{e}");
                     }
@@ -53,7 +53,7 @@ fn run_prompt() {
     }
 }
 
-fn run(source: &str) -> Result<(), Vec<LoxError>> {
+fn run<'a>(source: &'a [char]) -> Result<(), Vec<LoxError>> {
     let mut scanner: Scanner = Scanner::new(source);
     let (tokens, err) = scanner.scan_tokens();
     for token in tokens {
