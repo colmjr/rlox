@@ -67,7 +67,7 @@ pub struct Token {
     token_type: TokenType,
     lexeme: String,
     literal: Option<Literal>,
-    line: usize,
+    _line: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -76,18 +76,31 @@ pub enum Literal {
     Number(f64),
 }
 
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Literal::String(string) => {
+                write!(f, "\"{}\"", string)
+            }
+            Literal::Number(num) => {
+                write!(f, "{}", num)
+            }
+        }
+    }
+}
+
 impl Token {
     pub fn new(
         token_type: TokenType,
         lexeme: String,
         literal: Option<Literal>,
-        line: usize,
+        _line: usize,
     ) -> Self {
         Self {
             token_type,
             lexeme,
             literal,
-            line,
+            _line,
         }
     }
 }
@@ -310,7 +323,7 @@ impl<'a> Scanner<'a> {
     }
 
     // TODO: is there a case in which fn identifier fails and we need access to errors?
-    pub fn identifier(&mut self, errors: &mut Vec<LoxError>) {
+    pub fn identifier(&mut self, _errors: &mut Vec<LoxError>) {
         while let Some(val) = self.peek()
             && is_alphanumeric(val)
         {
