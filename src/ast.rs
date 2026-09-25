@@ -27,10 +27,10 @@ impl fmt::Display for Expr {
                 operator,
                 right,
             } => {
-                write!(f, "({} {} {})", left, operator, right)
+                write!(f, "({} {} {})", operator.lexeme, left, right)
             }
             Expr::Unary { operator, right } => {
-                write!(f, "({} {})", operator, right)
+                write!(f, "({} {})", operator.lexeme, right)
             }
             Expr::Literal { value } => {
                 if let Some(val) = value {
@@ -40,7 +40,7 @@ impl fmt::Display for Expr {
                 }
             }
             Expr::Grouping { expression } => {
-                write!(f, "{expression}")
+                write!(f, "(group {expression})")
             }
         }
     }

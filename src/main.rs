@@ -1,20 +1,23 @@
-use rlox::{error::LoxError, scanner::Scanner};
+use rlox::{error::LoxError, parser::Parser, scanner::Scanner};
 
-use std::io::Write;
+use std::{io::Write, process::ExitCode};
 
-fn main() {
+fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
     match args.len() {
-        1 => run_prompt(),
-        2 => run_file(&args[1]),
+        1 => {
+            run_prompt();
+            ExitCode::SUCCESS
+        }
+        2 => return run_file(&args[1]),
         _ => {
             eprintln!("Usage: lox [script]");
-            std::process::exit(64)
+            ExitCode::from(64)
         }
     }
 }
 
-fn run_file(path: &str) {
+fn run_file(path: &str) -> ExitCode {
     let source = std::fs::read_to_string(path).unwrap_or_else(|e| {
         eprintln!("could not read {path}: {e}");
         std::process::exit(74); // IO Error
@@ -22,12 +25,13 @@ fn run_file(path: &str) {
 
     let source: Vec<char> = source.chars().collect();
 
-    if let Err(err) = run(&source) {
-        for e in &err {
+    if let Err(errors) = run(&source) {
+        for e in errors {
             eprintln!("{e}");
         }
-        std::process::exit(65);
+        return ExitCode::from(65);
     }
+    ExitCode::SUCCESS
 }
 
 fn run_prompt() {
@@ -55,9 +59,12 @@ fn run_prompt() {
 
 fn run<'a>(source: &'a [char]) -> Result<(), Vec<LoxError>> {
     let mut scanner: Scanner = Scanner::new(source);
-    let (tokens, err) = scanner.scan_tokens();
-    for token in tokens {
-        println!("{token:?}");
+    let (tokens, errors) = scanner.scan_tokens();
+    if !errors.is_empty() {
+        return Err(errors);
     }
-    if err.is_empty() { Ok(()) } else { Err(err) }
+    let mut parser = Parser::new(tokens, 0);
+    let expression = parser.parse().map_err(|e| vec![e])?;
+    println!("{expression}");
+    Ok(())
 }

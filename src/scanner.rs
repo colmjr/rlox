@@ -62,29 +62,32 @@ pub enum TokenType {
     Eof,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
-    token_type: TokenType,
-    lexeme: String,
-    literal: Option<Literal>,
-    _line: usize,
+    pub token_type: TokenType,
+    pub lexeme: String,
+    pub literal: Option<Literal>,
+    pub line: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     String(String),
     Number(f64),
+    Bool(bool),
+    Nil,
 }
 
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Literal::String(string) => {
-                write!(f, "\"{}\"", string)
-            }
-            Literal::Number(num) => {
-                write!(f, "{}", num)
-            }
+            Literal::String(string) => write!(f, "\"{}\"", string),
+
+            Literal::Number(num) => write!(f, "{}", num),
+
+            Literal::Bool(bool) => write!(f, "{}", bool),
+
+            Literal::Nil => write!(f, "nil"),
         }
     }
 }
@@ -94,13 +97,13 @@ impl Token {
         token_type: TokenType,
         lexeme: String,
         literal: Option<Literal>,
-        _line: usize,
+        line: usize,
     ) -> Self {
         Self {
             token_type,
             lexeme,
             literal,
-            _line,
+            line,
         }
     }
 }
