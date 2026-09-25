@@ -19,9 +19,23 @@ impl Parser {
     }
 
     pub fn expression(&mut self) -> Result<Expr, LoxError> {
-        self.equality()
+        self.ternary()
     }
 
+    pub fn ternary(&mut self) -> Result<Expr, LoxError> {
+        let mut expr: Expr = self.equality()?;
+        while self.match_type(&[TokenType::Question]) {
+            let then_branch: Expr = self.expression()?;
+            self.consume(TokenType::Colon, "expect ':' in ternary")?;
+            let else_branch: Expr = self.ternary()?;
+            expr = Expr::Ternary {
+                condition: Box::new(expr),
+                then_branch: Box::new(then_branch),
+                else_branch: Box::new(else_branch),
+            };
+        }
+        Ok(expr)
+    }
     pub fn equality(&mut self) -> Result<Expr, LoxError> {
         let mut expr: Expr = self.comparison()?;
         while self.match_type(&[TokenType::BangEqual, TokenType::EqualEqual]) {
@@ -34,52 +48,6 @@ impl Parser {
             };
         }
         Ok(expr)
-    }
-
-    pub fn match_type(&mut self, types: &[TokenType]) -> bool {
-        for r#type in types {
-            if self.check(r#type) {
-                self.advance(); // consumes
-                return true;
-            }
-        }
-        return false;
-    }
-
-    pub fn advance(&mut self) -> Token {
-        if !self.is_at_end() {
-            self.current += 1;
-        }
-        self.previous()
-            .expect("after advancing, we should be able to see previous")
-    }
-
-    pub fn check(&self, r#type: &TokenType) -> bool {
-        if self.is_at_end() {
-            return false;
-        }
-        match self.peek() {
-            Some(token) => return &token.token_type == r#type,
-            None => return false,
-        }
-    }
-
-    pub fn peek(&self) -> Option<Token> {
-        self.tokens.get(self.current).cloned()
-    }
-
-    pub fn previous(&self) -> Option<Token> {
-        self.current
-            .checked_sub(1)
-            .and_then(|i| self.tokens.get(i))
-            .cloned()
-    }
-
-    pub fn is_at_end(&self) -> bool {
-        match self.peek() {
-            Some(x) => x.token_type == TokenType::Eof,
-            None => false,
-        }
     }
 
     pub fn comparison(&mut self) -> Result<Expr, LoxError> {
@@ -177,6 +145,52 @@ impl Parser {
             line: self.peek().map(|t| t.line).expect("Should be EOF"),
             message: "Expect expression".to_string(),
         })
+    }
+
+    pub fn match_type(&mut self, types: &[TokenType]) -> bool {
+        for r#type in types {
+            if self.check(r#type) {
+                self.advance(); // consumes
+                return true;
+            }
+        }
+        return false;
+    }
+
+    pub fn advance(&mut self) -> Token {
+        if !self.is_at_end() {
+            self.current += 1;
+        }
+        self.previous()
+            .expect("after advancing, we should be able to see previous")
+    }
+
+    pub fn check(&self, r#type: &TokenType) -> bool {
+        if self.is_at_end() {
+            return false;
+        }
+        match self.peek() {
+            Some(token) => return &token.token_type == r#type,
+            None => return false,
+        }
+    }
+
+    pub fn peek(&self) -> Option<Token> {
+        self.tokens.get(self.current).cloned()
+    }
+
+    pub fn previous(&self) -> Option<Token> {
+        self.current
+            .checked_sub(1)
+            .and_then(|i| self.tokens.get(i))
+            .cloned()
+    }
+
+    pub fn is_at_end(&self) -> bool {
+        match self.peek() {
+            Some(x) => x.token_type == TokenType::Eof,
+            None => false,
+        }
     }
 
     pub fn consume(&mut self, r#type: TokenType, message: &str) -> Result<Token, LoxError> {

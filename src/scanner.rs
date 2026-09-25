@@ -22,8 +22,10 @@ pub enum TokenType {
     Dot,
     Minus,
     Plus,
+    Colon,
     Semicolon,
     Slash,
+    Question,
     Star,
 
     // One or two character tokens.
@@ -180,6 +182,8 @@ impl<'a> Scanner<'a> {
             '+' => self.add_token(TokenType::Plus, None),
             ';' => self.add_token(TokenType::Semicolon, None),
             '*' => self.add_token(TokenType::Star, None),
+            '?' => self.add_token(TokenType::Question, None),
+            ':' => self.add_token(TokenType::Colon, None),
             '!' => {
                 let kind = if self.match_next('=') {
                     TokenType::BangEqual

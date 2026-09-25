@@ -17,6 +17,11 @@ pub enum Expr {
     Grouping {
         expression: Box<Expr>,
     },
+    Ternary {
+        condition: Box<Expr>,
+        then_branch: Box<Expr>,
+        else_branch: Box<Expr>,
+    },
 }
 
 impl fmt::Display for Expr {
@@ -41,6 +46,13 @@ impl fmt::Display for Expr {
             }
             Expr::Grouping { expression } => {
                 write!(f, "(group {expression})")
+            }
+            Expr::Ternary {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                write!(f, "({condition} ? {then_branch} : {else_branch})")
             }
         }
     }
