@@ -12,7 +12,7 @@ pub enum Expr {
         right: Box<Expr>,
     },
     Literal {
-        value: Option<Literal>,
+        value: Literal,
     },
     Grouping {
         expression: Box<Expr>,
@@ -38,11 +38,7 @@ impl fmt::Display for Expr {
                 write!(f, "({} {})", operator.lexeme, right)
             }
             Expr::Literal { value } => {
-                if let Some(val) = value {
-                    write!(f, "{val}")
-                } else {
-                    write!(f, "nil")
-                }
+                write!(f, "{value}")
             }
             Expr::Grouping { expression } => {
                 write!(f, "(group {expression})")

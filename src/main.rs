@@ -1,4 +1,4 @@
-use rlox::{error::LoxError, parser::Parser, scanner::Scanner};
+use rlox::{error::LoxError, interpreter::Interpreter, parser::Parser, scanner::Scanner};
 
 use std::{io::Write, process::ExitCode};
 
@@ -64,7 +64,8 @@ fn run<'a>(source: &'a [char]) -> Result<(), Vec<LoxError>> {
         return Err(errors);
     }
     let mut parser = Parser::new(tokens, 0);
+    let interpreter = Interpreter {};
     let expression = parser.parse().map_err(|e| vec![e])?;
-    println!("{expression}");
+    interpreter.intepret(&expression).map_err(|e| vec![e])?;
     Ok(())
 }

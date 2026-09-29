@@ -112,25 +112,29 @@ impl Parser {
     pub fn primary(&mut self) -> Result<Expr, LoxError> {
         if self.match_type(&[TokenType::False]) {
             return Ok(Expr::Literal {
-                value: Some(Literal::Bool(false)),
+                value: Literal::Bool(false),
             });
         }
 
         if self.match_type(&[TokenType::True]) {
             return Ok(Expr::Literal {
-                value: Some(Literal::Bool(true)),
+                value: Literal::Bool(true),
             });
         }
 
         if self.match_type(&[TokenType::Nil]) {
             return Ok(Expr::Literal {
-                value: Some(Literal::Nil),
+                value: Literal::Nil,
             });
         }
 
         if self.match_type(&[TokenType::Number, TokenType::String]) {
             return Ok(Expr::Literal {
-                value: self.previous().expect("must be previous").literal,
+                value: self
+                    .previous()
+                    .expect("must be previous")
+                    .literal
+                    .expect("number, string tokens always carry a literal"),
             });
         }
 
