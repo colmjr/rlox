@@ -1,5 +1,8 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{
-    ast::Expr,
+    ast::{Expr, Stmt},
+    environment::{EnvRef, Environment},
     error::LoxError,
     scanner::{Literal, TokenType},
 };
@@ -23,11 +26,51 @@ impl std::fmt::Display for Value {
     }
 }
 
-pub struct Interpreter {}
+pub struct Interpreter {
+    // current environment
+    pub environment: EnvRef,
+}
 
 impl Interpreter {
-    pub fn eval(&self, expr: &Expr) -> Result<Value, LoxError> {
+    pub fn execute(&mut self, stmt: &Stmt) -> Result<(), LoxError> {
+        match stmt {
+            Stmt::Block { statements } => {
+                let child = Rc::new(RefCell::new(Environment::enclosed(Rc::clone(
+                    &self.environment,
+                ))));
+                self.execute_block(statements, child)
+            }
+            Stmt::Expression { expression } => {
+                self.eval(expression)?;
+                Ok(())
+            }
+            Stmt::Print { expression } => {
+                let value = self.eval(expression)?;
+                println!("{value}");
+                Ok(())
+            }
+            Stmt::Var { name, initializer } => {
+                let value = match initializer {
+                    Some(expr) => self.eval(expr)?,
+                    None => Value::Nil,
+                };
+                self.environment
+                    .borrow_mut()
+                    .define(name.lexeme.clone(), value);
+                Ok(())
+            }
+        }
+    }
+
+    pub fn eval(&mut self, expr: &Expr) -> Result<Value, LoxError> {
         match expr {
+            Expr::Assign { name, value } => {
+                let value = self.eval(value)?;
+                self.environment
+                    .borrow_mut()
+                    .assign(name.clone(), value.clone())?;
+                return Ok(value);
+            }
             Expr::Literal { value } => match value {
                 Literal::String(s) => Ok(Value::String(s.clone())),
                 Literal::Bool(b) => Ok(Value::Bool(*b)),
@@ -135,12 +178,28 @@ impl Interpreter {
                     self.eval(else_branch)
                 }
             }
+
+            Expr::Var { name } => self.environment.borrow().get(name),
         }
     }
 
-    pub fn intepret(&self, expr: &Expr) -> Result<(), LoxError> {
-        let value = self.eval(expr)?;
-        println!("{value}");
+    pub fn interpret(&mut self, statements: Vec<Stmt>) -> Result<(), LoxError> {
+        for statement in statements {
+            self.execute(&statement)?;
+        }
+        Ok(())
+    }
+
+    pub fn execute_block(
+        &mut self,
+        statements: &Vec<Stmt>,
+        environment: EnvRef,
+    ) -> Result<(), LoxError> {
+        let prev = std::mem::replace(&mut self.environment, environment);
+        for statement in statements {
+            self.execute(statement)?;
+        }
+        self.environment = prev;
         Ok(())
     }
 }

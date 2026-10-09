@@ -1,6 +1,9 @@
-use rlox::{error::LoxError, interpreter::Interpreter, parser::Parser, scanner::Scanner};
+use rlox::{
+    ast::Stmt, environment::Environment, error::LoxError, interpreter::Interpreter, parser::Parser,
+    scanner::Scanner,
+};
 
-use std::{io::Write, process::ExitCode};
+use std::{cell::RefCell, io::Write, process::ExitCode, rc::Rc};
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
@@ -64,8 +67,10 @@ fn run<'a>(source: &'a [char]) -> Result<(), Vec<LoxError>> {
         return Err(errors);
     }
     let mut parser = Parser::new(tokens, 0);
-    let interpreter = Interpreter {};
-    let expression = parser.parse().map_err(|e| vec![e])?;
-    interpreter.intepret(&expression).map_err(|e| vec![e])?;
+    let mut interpreter = Interpreter {
+        environment: Rc::new(RefCell::new(Environment::new())),
+    };
+    let expression: Vec<Stmt> = parser.parse()?;
+    interpreter.interpret(expression).map_err(|e| vec![e])?;
     Ok(())
 }

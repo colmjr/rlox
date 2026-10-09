@@ -2,6 +2,10 @@ use crate::scanner::{Literal, Token};
 use std::fmt;
 
 pub enum Expr {
+    Assign {
+        name: Token,
+        value: Box<Expr>,
+    },
     Binary {
         left: Box<Expr>,
         operator: Token,
@@ -22,11 +26,33 @@ pub enum Expr {
         then_branch: Box<Expr>,
         else_branch: Box<Expr>,
     },
+    Var {
+        name: Token,
+    },
+}
+
+pub enum Stmt {
+    Block {
+        statements: Vec<Stmt>,
+    },
+    Expression {
+        expression: Expr,
+    },
+    Print {
+        expression: Expr,
+    },
+    Var {
+        name: Token,
+        initializer: Option<Expr>,
+    },
 }
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Expr::Assign { name, value } => {
+                write!(f, "({} = {})", name.lexeme, value)
+            }
             Expr::Binary {
                 left,
                 operator,
@@ -49,6 +75,9 @@ impl fmt::Display for Expr {
                 else_branch,
             } => {
                 write!(f, "({condition} ? {then_branch} : {else_branch})")
+            }
+            Expr::Var { name } => {
+                write!(f, "var {name}")
             }
         }
     }
