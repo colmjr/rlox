@@ -1,1 +1,21 @@
-(1 + 2) * (3 - 4) / 5
+print "one";
+
+print true;
+
+print 2 + 1;
+
+var beverage = "expresso";
+print beverage + " coffee";
+
+var a = 1;
+print a = 2;
+
+{
+    var b = "first";
+    print b;
+}
+
+{
+    var b = "second";
+    print b;
+}
