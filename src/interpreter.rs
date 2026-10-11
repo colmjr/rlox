@@ -198,11 +198,15 @@ impl Interpreter {
         environment: EnvRef,
     ) -> Result<(), LoxError> {
         let prev = std::mem::replace(&mut self.environment, environment);
-        for statement in statements {
-            self.execute(statement)?;
-        }
+        let result = (|| -> Result<(), LoxError> {
+            for statement in statements {
+                self.execute(statement)?;
+            }
+
+            Ok(())
+        })();
         self.environment = prev;
-        Ok(())
+        result
     }
 }
 
