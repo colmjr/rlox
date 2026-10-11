@@ -1,2 +1,36 @@
 #+author: Colm Rafferty
-This is the implementation of the tree-walk intepreter in [[https://craftingintepreters.com/][Crafting intepreters]].
+* Description
+This is the implementation of the tree-walk intepreter in [[https://craftinginterpreters.com/][Crafting Interpreters]].
+
+* Grammar structure:
+The current grammar structure expressed in [[https://en.wikipedia.org/wiki/Extended_Backus–Naur_form][EBNR]] is as follows(I do prefer whitespace concatenation over using ',' to symbolize concatenation but I use mostly normal EBNR for the rest in contrast to the Crafting Interpreter dialect):
+
+#+begin_src ebnf
+program = { declaration } EOF ;
+declaration = var_decl | statement ;
+statement = expr_stmt | print_stmt | if_stmt | block ;
+expr_stmt = expression ";" ;
+print_stmt = "print" expression ";" ;
+if_stmt = "if" "(" expression ")" statement ["else" statement] ;
+var_decl = "var" IDENTIFIER [ "=" expression ] ";" ;
+expression = assignment ;
+assignment = IDENTIFIER  "=" assignment | logic_or ;
+logic_or = logic_and { "or" logic_and } ;
+logic_and = ternary { "and" ternary } ;
+block = "{" {declaration} "}" ;
+ternary = equality [ "?" expression ":" ternary ] ;
+equality = comparison { ("!=" | "==") comparison } ;
+comparison = term { (">=" | ">" | "<" | "<=") term } ;
+term = factor { ("+" | "-") factor } ;
+factor = unary { ("*" | "/" ) unary } ;
+unary = (("!" | "-") unary) | primary
+primary = nonterminal | ("(" expression ")")
+#+end_src
+
+* Usage
+You can either interact with the interpreter through the REPL or pass in files as command arguments:
+
+#+begin_src shell
+cargo run # opens REPL
+cargo run -- test.lox # runs on test file inside repo
+#+end_src
