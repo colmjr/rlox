@@ -162,6 +162,8 @@ impl Interpreter {
                             message: "Operands must be numbers".to_string(),
                         }),
                     },
+                    TokenType::EqualEqual => Ok(Value::Bool(left == right)),
+                    TokenType::BangEqual => Ok(Value::Bool(left != right)),
 
                     _ => unreachable!("Parser only gives binary nodes in normal token types"),
                 }
