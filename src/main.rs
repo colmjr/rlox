@@ -12,7 +12,7 @@ fn main() -> ExitCode {
             run_prompt();
             ExitCode::SUCCESS
         }
-        2 => return run_file(&args[1]),
+        2 => run_file(&args[1]),
         _ => {
             eprintln!("Usage: lox [script]");
             ExitCode::from(64)
@@ -60,7 +60,7 @@ fn run_prompt() {
     }
 }
 
-fn run<'a>(source: &'a [char]) -> Result<(), Vec<LoxError>> {
+fn run(source: &[char]) -> Result<(), Vec<LoxError>> {
     let mut scanner: Scanner = Scanner::new(source);
     let (tokens, errors) = scanner.scan_tokens();
     if !errors.is_empty() {

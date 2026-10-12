@@ -204,7 +204,7 @@ impl Parser {
                 return true;
             }
         }
-        return false;
+        false
     }
 
     fn advance(&mut self) -> Token {
@@ -220,8 +220,8 @@ impl Parser {
             return false;
         }
         match self.peek() {
-            Some(token) => return &token.token_type == r#type,
-            None => return false,
+            Some(token) => &token.token_type == r#type,
+            None => false,
         }
     }
 
@@ -316,12 +316,11 @@ impl Parser {
     fn var_declaration(&mut self) -> Result<Stmt, LoxError> {
         let name = self.consume(TokenType::Identifier, "Expected variable name.")?;
 
-        let initializer: Option<Expr>;
-        if self.match_type(&[TokenType::Equal]) {
-            initializer = Some(self.expression()?);
+        let initializer: Option<Expr> = if self.match_type(&[TokenType::Equal]) {
+            Some(self.expression()?)
         } else {
-            initializer = None;
-        }
+            None
+        };
         self.consume(TokenType::Semicolon, "Expected ';'")?;
         Ok(Stmt::Var { name, initializer })
     }

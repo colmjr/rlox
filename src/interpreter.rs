@@ -69,7 +69,7 @@ impl Interpreter {
                 self.environment
                     .borrow_mut()
                     .assign(name.clone(), value.clone())?;
-                return Ok(value);
+                Ok(value)
             }
             Expr::Literal { value } => match value {
                 Literal::String(s) => Ok(Value::String(s.clone())),
