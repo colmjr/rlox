@@ -9,9 +9,9 @@ pub enum LoxError {
 impl fmt::Display for LoxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LoxError::Scan { line, message } => write!(f, "[line {line}] Error: {message}"),
-            LoxError::Parse { line, message } => write!(f, "[line {line}] Error: {message}"),
-            LoxError::Runtime { line, message } => write!(f, "[line {line}] Error: {message}"),
+            LoxError::Scan { line, message }
+            | LoxError::Parse { line, message }
+            | LoxError::Runtime { line, message } => write!(f, "[line {line}] Error: {message}"),
         }
     }
 }
