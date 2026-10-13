@@ -306,6 +306,7 @@ impl Parser {
                 | TokenType::If
                 | TokenType::While
                 | TokenType::Print
+                | TokenType::Break
                 | TokenType::Return => return,
                 _ => {
                     self.advance();
@@ -331,6 +332,10 @@ impl Parser {
         }
         if self.match_type(&[TokenType::While]) {
             return self.while_statement();
+        }
+        if self.match_type(&[TokenType::Break]) {
+            self.consume(TokenType::Semicolon, "Expect ';' after 'break'")?;
+            return Ok(Stmt::Break);
         }
         self.expression_statement()
     }

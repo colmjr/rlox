@@ -15,6 +15,12 @@ pub enum Value {
     String(String),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Flow {
+    Normal,
+    Break,
+}
+
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -32,7 +38,7 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
-    pub fn execute(&mut self, stmt: &Stmt) -> Result<(), LoxError> {
+    pub fn execute(&mut self, stmt: &Stmt) -> Result<Flow, LoxError> {
         match stmt {
             Stmt::Block { statements } => {
                 let child = Rc::new(RefCell::new(Environment::enclosed(Rc::clone(
@@ -42,12 +48,12 @@ impl Interpreter {
             }
             Stmt::Expression { expression } => {
                 self.eval(expression)?;
-                Ok(())
+                Ok(Flow::Normal)
             }
             Stmt::Print { expression } => {
                 let value = self.eval(expression)?;
                 println!("{value}");
-                Ok(())
+                Ok(Flow::Normal)
             }
             Stmt::If {
                 condition,
@@ -55,11 +61,11 @@ impl Interpreter {
                 else_branch,
             } => {
                 if is_truthy(&self.eval(condition)?) {
-                    self.execute(then_branch)?;
+                    return self.execute(then_branch);
                 } else if let Some(branch) = else_branch {
-                    self.execute(branch)?;
+                    return self.execute(branch);
                 }
-                Ok(())
+                Ok(Flow::Normal)
             }
             Stmt::Var { name, initializer } => {
                 let value = match initializer {
@@ -69,14 +75,18 @@ impl Interpreter {
                 self.environment
                     .borrow_mut()
                     .define(name.lexeme.clone(), value);
-                Ok(())
+                Ok(Flow::Normal)
             }
             Stmt::While { condition, body } => {
                 while is_truthy(&self.eval(condition)?) {
-                    self.execute(body)?;
+                    let flow = self.execute(body)?;
+                    if flow == Flow::Break {
+                        return Ok(Flow::Break);
+                    }
                 }
-                Ok(())
+                Ok(Flow::Normal)
             }
+            Stmt::Break => Ok(Flow::Break),
         }
     }
 
@@ -234,14 +244,18 @@ impl Interpreter {
         &mut self,
         statements: &Vec<Stmt>,
         environment: EnvRef,
-    ) -> Result<(), LoxError> {
+    ) -> Result<Flow, LoxError> {
         let prev = std::mem::replace(&mut self.environment, environment);
-        let result = (|| -> Result<(), LoxError> {
+        let result = (|| -> Result<Flow, LoxError> {
             for statement in statements {
-                self.execute(statement)?;
+                let flow = self.execute(statement)?;
+
+                if flow == Flow::Break {
+                    return Ok(Flow::Break);
+                }
             }
 
-            Ok(())
+            Ok(Flow::Normal)
         })();
         self.environment = prev;
         result

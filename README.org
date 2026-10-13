@@ -29,6 +29,8 @@ unary = (("!" | "-") unary) | primary
 primary = nonterminal | ("(" expression ")")
 #+end_src
 
+Notes: I am not sure where to add this, but break breaks out of for loops and while loops, and propagates out of if statements.
+
 * Usage
 You can either interact with the interpreter through the REPL or pass in files as command arguments:
 

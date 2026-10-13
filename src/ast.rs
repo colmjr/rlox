@@ -59,6 +59,7 @@ pub enum Stmt {
         condition: Expr,
         body: Box<Stmt>,
     },
+    Break,
 }
 
 impl fmt::Display for Expr {
