@@ -8,16 +8,18 @@ The current grammar structure expressed in [[https://en.wikipedia.org/wiki/Exten
 #+begin_src ebnf
 program = { declaration } EOF ;
 declaration = var_decl | statement ;
-statement = expr_stmt | print_stmt | if_stmt | block ;
+statement = expr_stmt | print_stmt | if_stmt | block | while_stmt | for_stmt ;
 expr_stmt = expression ";" ;
 print_stmt = "print" expression ";" ;
 if_stmt = "if" "(" expression ")" statement ["else" statement] ;
+block = "{" {declaration} "}" ;
+while_stmt = "while" "(" expression ")" statement ;
+for_stmt = "for" "(" ( var_decl | expr_stmt | ";" ) [ expression ] ";" [expression] ")" statement ;
 var_decl = "var" IDENTIFIER [ "=" expression ] ";" ;
 expression = assignment ;
 assignment = IDENTIFIER  "=" assignment | logic_or ;
 logic_or = logic_and { "or" logic_and } ;
 logic_and = ternary { "and" ternary } ;
-block = "{" {declaration} "}" ;
 ternary = equality [ "?" expression ":" ternary ] ;
 equality = comparison { ("!=" | "==") comparison } ;
 comparison = term { (">=" | ">" | "<" | "<=") term } ;

@@ -36,8 +36,8 @@ impl Environment {
     }
 
     pub fn assign(&mut self, name: Token, value: Value) -> Result<(), LoxError> {
-        if self.values.contains_key(&name.lexeme) {
-            self.values.insert(name.lexeme, value);
+        if let Some(existing) = self.values.get_mut(&name.lexeme) {
+            *existing = value;
             return Ok(());
         }
 
@@ -55,5 +55,11 @@ impl Environment {
             values: HashMap::new(),
             enclosing: Some(parent),
         }
+    }
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Self::new()
     }
 }

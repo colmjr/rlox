@@ -49,6 +49,18 @@ impl Interpreter {
                 println!("{value}");
                 Ok(())
             }
+            Stmt::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                if is_truthy(&self.eval(condition)?) {
+                    self.execute(then_branch)?;
+                } else if let Some(branch) = else_branch {
+                    self.execute(branch)?;
+                }
+                Ok(())
+            }
             Stmt::Var { name, initializer } => {
                 let value = match initializer {
                     Some(expr) => self.eval(expr)?,
@@ -57,6 +69,12 @@ impl Interpreter {
                 self.environment
                     .borrow_mut()
                     .define(name.lexeme.clone(), value);
+                Ok(())
+            }
+            Stmt::While { condition, body } => {
+                while is_truthy(&self.eval(condition)?) {
+                    self.execute(body)?;
+                }
                 Ok(())
             }
         }
@@ -91,6 +109,26 @@ impl Interpreter {
                     TokenType::Bang => Ok(Value::Bool(!is_truthy(&right))),
                     _ => unreachable!("Parser only makes unary nodes with bang and minus"),
                 }
+            }
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => {
+                let left = self.eval(left)?;
+
+                // if tokentype is And, and left is false no need to eval right
+                if operator.token_type == TokenType::Or {
+                    if is_truthy(&left) {
+                        return Ok(left);
+                    }
+                } else {
+                    if !is_truthy(&left) {
+                        return Ok(left);
+                    }
+                }
+
+                self.eval(right)
             }
             Expr::Binary {
                 left,

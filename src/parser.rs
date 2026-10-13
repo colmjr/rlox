@@ -39,7 +39,8 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> Result<Expr, LoxError> {
-        let expr: Expr = self.ternary()?;
+        let expr: Expr = self.or()?;
+
         if self.match_type(&[TokenType::Equal]) {
             let equals = self.previous().expect("Should be previous.");
             let value = self.assignment()?;
@@ -60,6 +61,37 @@ impl Parser {
         }
         Ok(expr)
     }
+
+    fn or(&mut self) -> Result<Expr, LoxError> {
+        let mut expr: Expr = self.and()?;
+
+        while self.match_type(&[TokenType::Or]) {
+            let operator = self.previous().expect("Should be previous.");
+            let right = self.and()?;
+            expr = Expr::Logical {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
+            };
+        }
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> Result<Expr, LoxError> {
+        let mut expr: Expr = self.ternary()?;
+
+        while self.match_type(&[TokenType::And]) {
+            let operator = self.previous().expect("Should be previous");
+            let right = self.ternary()?;
+            expr = Expr::Logical {
+                left: Box::new(expr),
+                operator,
+                right: Box::new(right),
+            };
+        }
+        Ok(expr)
+    }
+
     fn ternary(&mut self) -> Result<Expr, LoxError> {
         let mut expr: Expr = self.equality()?;
         while self.match_type(&[TokenType::Question]) {
@@ -283,6 +315,9 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, LoxError> {
+        if self.match_type(&[TokenType::For]) {
+            return self.for_statement();
+        }
         if self.match_type(&[TokenType::Print]) {
             return self.print_statement();
         }
@@ -291,7 +326,66 @@ impl Parser {
                 statements: self.block()?,
             });
         }
+        if self.match_type(&[TokenType::If]) {
+            return self.if_statement();
+        }
+        if self.match_type(&[TokenType::While]) {
+            return self.while_statement();
+        }
         self.expression_statement()
+    }
+
+    fn for_statement(&mut self) -> Result<Stmt, LoxError> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'for'.)")?;
+
+        let initializer: Option<Stmt> = if self.match_type(&[TokenType::Semicolon]) {
+            None
+        } else if self.match_type(&[TokenType::Var]) {
+            Some(self.var_declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+
+        let mut condition: Option<Expr> = if !self.check(&TokenType::Semicolon) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(TokenType::Semicolon, "Expect ';' after loop condition")?;
+
+        let increment: Option<Expr> = if !self.check(&TokenType::Semicolon) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(TokenType::RightParen, "Expect ')' after for clauses")?;
+
+        let mut body = self.statement()?;
+
+        if let Some(incr) = increment {
+            body = Stmt::Block {
+                statements: vec![body, Stmt::Expression { expression: incr }],
+            }
+        }
+
+        if condition.is_none() {
+            condition = Some(Expr::Literal {
+                value: Literal::Bool(true),
+            })
+        }
+
+        body = Stmt::While {
+            condition: condition.expect("Invariant not enforced that None condition is true"),
+            body: Box::new(body),
+        };
+
+        if let Some(init) = initializer {
+            body = Stmt::Block {
+                statements: vec![init, body],
+            }
+        }
+
+        Ok(body)
     }
 
     fn print_statement(&mut self) -> Result<Stmt, LoxError> {
@@ -304,6 +398,36 @@ impl Parser {
         let expression: Expr = self.expression()?;
         self.consume(TokenType::Semicolon, "Expected ';' after value.")?;
         Ok(Stmt::Expression { expression })
+    }
+
+    fn if_statement(&mut self) -> Result<Stmt, LoxError> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'if'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expect ')' after 'if' condition.")?;
+
+        let then_branch = Box::new(self.statement()?);
+        let else_branch = if self.match_type(&[TokenType::Else]) {
+            Some(Box::new(self.statement()?))
+        } else {
+            None
+        };
+        Ok(Stmt::If {
+            condition,
+            then_branch,
+            else_branch,
+        })
+    }
+
+    fn while_statement(&mut self) -> Result<Stmt, LoxError> {
+        self.consume(TokenType::LeftParen, "Expect '(' before 'while'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expect ')' after 'while'.")?;
+        let body = self.statement()?;
+
+        Ok(Stmt::While {
+            condition,
+            body: Box::new(body),
+        })
     }
 
     fn declaration(&mut self) -> Result<Stmt, LoxError> {
