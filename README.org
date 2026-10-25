@@ -1,9 +1,9 @@
 #+author: Colm Rafferty
 * Description
-This is the implementation of the tree-walk intepreter in [[https://craftinginterpreters.com/][Crafting Interpreters]].
+This is the implementation of the tree-walk intepreter in [[https://craftinginterpreters.com/][Crafting Interpreters]]. I have chosen to preserve most if not all of the language idiosyncrasies, just for reference purposes, such as print statements being built into the language instead of being a native function.
 
 * Grammar structure:
-The current grammar structure expressed in [[https://en.wikipedia.org/wiki/Extended_Backus–Naur_form][EBNR]] is as follows(I do prefer whitespace concatenation over using ',' to symbolize concatenation but I use mostly normal EBNR for the rest in contrast to the Crafting Interpreter dialect):
+The current grammar structure expressed in [[https://en.wikipedia.org/wiki/Extended_Backus–Naur_form][EBNR]] is as follows(I do prefer whitespace concatenation over using ',' to symbolize concatenation but I use mostly normal EBNR for the rest in contrast to the Crafting Interpreter dialect). I use all capitals to show non-terminals:
 
 #+begin_src ebnf
 program = { declaration } EOF ;
@@ -46,6 +46,4 @@ cargo run -- test.lox # runs on test file inside repo
 * Examples
 Read test.lox to see what the rudimentary syntax looks like in action.
 * Design Caveats
-** Break breaks out of for loops and while loops, and propagates out of if statements.
-** Von Neumann architecture
-This interpreter uses [[https://en.wikipedia.org/wiki/Von_Neumann_architecture][Von Neumann architecture]], where I just learned that programs as [[https://www.linusakesson.net/programming/brainfuck/quine.bf][Small quine size]] are not possible to run as you can see. This is because I have not implemented wrapping nor negative indexes leading to source code.
+- Break breaks out of for loops and while loops, and propagates out of if statements.
