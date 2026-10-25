@@ -2,23 +2,39 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     ast::{Expr, Stmt},
+    callable::{Callable, Clock, LoxFunction},
     environment::{EnvRef, Environment},
     error::LoxError,
     scanner::{Literal, TokenType},
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Nil,
     Bool(bool),
     Number(f64),
     String(String),
+    Callable(Rc<dyn Callable>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Flow {
     Normal,
     Break,
+    Return(Value),
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Nil, Value::Nil) => true,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::Number(a), Value::Number(b)) => a == b,
+            (Value::String(a), Value::String(b)) => a == b,
+            (Value::Callable(a), Value::Callable(b)) => Rc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
 }
 
 impl std::fmt::Display for Value {
@@ -28,6 +44,7 @@ impl std::fmt::Display for Value {
             Value::Number(num) => write!(f, "{num}"),
             Value::Bool(b) => write!(f, "{b}"),
             Value::Nil => write!(f, "nil"),
+            Value::Callable(_) => write!(f, "Callable(<fn>)"),
         }
     }
 }
@@ -35,9 +52,27 @@ impl std::fmt::Display for Value {
 pub struct Interpreter {
     // current environment
     pub environment: EnvRef,
+    pub globals: EnvRef,
+}
+
+impl Default for Interpreter {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Interpreter {
+    pub fn new() -> Self {
+        let globals = Rc::new(RefCell::new(Environment::new()));
+        let environment = Rc::clone(&globals);
+        globals
+            .borrow_mut()
+            .define("clock".to_string(), Value::Callable(Rc::new(Clock)));
+        Self {
+            globals,
+            environment,
+        }
+    }
     pub fn execute(&mut self, stmt: &Stmt) -> Result<Flow, LoxError> {
         match stmt {
             Stmt::Block { statements } => {
@@ -80,13 +115,33 @@ impl Interpreter {
             Stmt::While { condition, body } => {
                 while is_truthy(&self.eval(condition)?) {
                     let flow = self.execute(body)?;
-                    if flow == Flow::Break {
-                        return Ok(Flow::Break);
+                    match flow {
+                        Flow::Break => break,
+                        f @ Flow::Return(_) => return Ok(f),
+                        Flow::Normal => {}
                     }
                 }
+
                 Ok(Flow::Normal)
             }
             Stmt::Break => Ok(Flow::Break),
+            s @ Stmt::Function { name, .. } => {
+                let function = LoxFunction::new(s.clone(), Rc::clone(&self.environment));
+                self.environment
+                    .borrow_mut()
+                    .define(name.lexeme.clone(), Value::Callable(Rc::new(function)));
+                Ok(Flow::Normal)
+            }
+            Stmt::Return {
+                keyword: _keyword,
+                value,
+            } => {
+                let value = match value {
+                    Some(val) => self.eval(val)?,
+                    None => Value::Nil,
+                };
+                Ok(Flow::Return(value))
+            }
         }
     }
 
@@ -228,8 +283,38 @@ impl Interpreter {
                     self.eval(else_branch)
                 }
             }
-
             Expr::Var { name } => self.environment.borrow().get(name),
+            Expr::Call {
+                callee,
+                paren,
+                arguments,
+            } => {
+                let callee = self.eval(callee)?;
+                let mut args: Vec<Value> = Vec::new();
+                for arg in arguments {
+                    args.push(self.eval(arg)?);
+                }
+
+                match callee {
+                    Value::Callable(func) => {
+                        if args.len() != func.arity() {
+                            return Err(LoxError::Runtime {
+                                line: paren.line,
+                                message: format!(
+                                    "Expected {} arguments but got {}.",
+                                    func.arity(),
+                                    args.len()
+                                ),
+                            });
+                        }
+                        Ok(func.call(self, args)?)
+                    }
+                    _ => Err(LoxError::Runtime {
+                        line: paren.line,
+                        message: "Can only call classes and functions".to_string(),
+                    }),
+                }
+            }
         }
     }
 
@@ -250,8 +335,8 @@ impl Interpreter {
             for statement in statements {
                 let flow = self.execute(statement)?;
 
-                if flow == Flow::Break {
-                    return Ok(Flow::Break);
+                if matches!(flow, Flow::Break | Flow::Return(_)) {
+                    return Ok(flow);
                 }
             }
 

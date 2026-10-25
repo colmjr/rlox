@@ -177,9 +177,46 @@ impl Parser {
                 right: Box::new(right),
             });
         }
-        self.primary()
+        self.call()
     }
 
+    fn call(&mut self) -> Result<Expr, LoxError> {
+        let mut expr = self.primary()?;
+
+        loop {
+            if self.match_type(&[TokenType::LeftParen]) {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr, LoxError> {
+        let mut arguments: Vec<Expr> = Vec::new();
+        if !self.check(&TokenType::RightParen) {
+            loop {
+                if arguments.len() >= 255 {
+                    return Err(LoxError::Runtime {
+                        line: self.peek().expect("There should be next").line,
+                        message: "Can't have more than 255 arguments".to_string(),
+                    });
+                }
+                arguments.push(self.expression()?);
+                if !self.match_type(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+        let paren = self.consume(TokenType::RightParen, "Expect ')' after arguments")?;
+        Ok(Expr::Call {
+            callee: Box::new(callee),
+            paren,
+            arguments,
+        })
+    }
     fn primary(&mut self) -> Result<Expr, LoxError> {
         if self.match_type(&[TokenType::False]) {
             return Ok(Expr::Literal {
@@ -322,6 +359,9 @@ impl Parser {
         if self.match_type(&[TokenType::Print]) {
             return self.print_statement();
         }
+        if self.match_type(&[TokenType::Return]) {
+            return self.return_statement();
+        }
         if self.match_type(&[TokenType::LeftBrace]) {
             return Ok(Stmt::Block {
                 statements: self.block()?,
@@ -436,6 +476,9 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, LoxError> {
+        if self.match_type(&[TokenType::Fun]) {
+            return self.function("function".to_string());
+        }
         if self.match_type(&[TokenType::Var]) {
             return self.var_declaration();
         }
@@ -462,5 +505,54 @@ impl Parser {
 
         self.consume(TokenType::RightBrace, "Expected '{' after block.")?;
         Ok(statements)
+    }
+
+    fn function(&mut self, kind: String) -> Result<Stmt, LoxError> {
+        // coerce to &str
+        let name = self.consume(TokenType::Identifier, &format!("Expect {} name.", kind))?;
+        self.consume(
+            TokenType::LeftParen,
+            &format!("Expect '(' after {} name.", kind),
+        )?;
+        let mut parameters: Vec<Token> = Vec::new();
+        if !self.check(&TokenType::RightParen) {
+            loop {
+                if parameters.len() >= 255 {
+                    return Err(LoxError::Runtime {
+                        line: name.line,
+                        message: "Cant have more than 255 params.".to_string(),
+                    });
+                }
+                parameters.push(self.consume(TokenType::Identifier, "Expect parameter name.")?);
+                if !self.match_type(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenType::RightParen, "Expect ')' after parameters.")?;
+
+        self.consume(
+            TokenType::LeftBrace,
+            &format!("Expect '{{' before {} body", kind),
+        )?;
+        let body = self.block()?;
+        Ok(Stmt::Function {
+            name,
+            params: parameters,
+            body,
+        })
+    }
+
+    fn return_statement(&mut self) -> Result<Stmt, LoxError> {
+        let keyword = self.previous().expect("Should be previous");
+        let value = if !self.check(&TokenType::Semicolon) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(TokenType::Semicolon, "Expect ';' after return value")?;
+
+        Ok(Stmt::Return { keyword, value })
     }
 }

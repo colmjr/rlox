@@ -7,15 +7,19 @@ The current grammar structure expressed in [[https://en.wikipedia.org/wiki/Exten
 
 #+begin_src ebnf
 program = { declaration } EOF ;
-declaration = var_decl | statement ;
-statement = expr_stmt | print_stmt | if_stmt | block | while_stmt | for_stmt ;
+declaration = var_decl | fun_decl | statement ;
+statement = expr_stmt | print_stmt | if_stmt | block | while_stmt | for_stmt | return_stmt ;
 expr_stmt = expression ";" ;
 print_stmt = "print" expression ";" ;
 if_stmt = "if" "(" expression ")" statement ["else" statement] ;
 block = "{" {declaration} "}" ;
 while_stmt = "while" "(" expression ")" statement ;
 for_stmt = "for" "(" ( var_decl | expr_stmt | ";" ) [ expression ] ";" [expression] ")" statement ;
+return_stmt = "return" [expression] ";" ;
 var_decl = "var" IDENTIFIER [ "=" expression ] ";" ;
+fun_decl = "fun" function ;
+function = IDENTIFIER "(" [parameters] ")" block ;
+parameters = IDENTIFIER {"," IDENTIFIER } ;
 expression = assignment ;
 assignment = IDENTIFIER  "=" assignment | logic_or ;
 logic_or = logic_and { "or" logic_and } ;
@@ -25,11 +29,11 @@ equality = comparison { ("!=" | "==") comparison } ;
 comparison = term { (">=" | ">" | "<" | "<=") term } ;
 term = factor { ("+" | "-") factor } ;
 factor = unary { ("*" | "/" ) unary } ;
-unary = (("!" | "-") unary) | primary
+unary = (("!" | "-") unary) | call ;
+call = primary { ("(" [ arguments ] ")") } ;
+arguments = expression { "," expression } ;
 primary = nonterminal | ("(" expression ")")
 #+end_src
-
-Notes: I am not sure where to add this, but break breaks out of for loops and while loops, and propagates out of if statements.
 
 * Usage
 You can either interact with the interpreter through the REPL or pass in files as command arguments:
@@ -38,3 +42,10 @@ You can either interact with the interpreter through the REPL or pass in files a
 cargo run # opens REPL
 cargo run -- test.lox # runs on test file inside repo
 #+end_src
+
+* Examples
+Read test.lox to see what the rudimentary syntax looks like in action.
+* Design Caveats
+** Break breaks out of for loops and while loops, and propagates out of if statements.
+** Von Neumann architecture
+This interpreter uses [[https://en.wikipedia.org/wiki/Von_Neumann_architecture][Von Neumann architecture]], where I just learned that programs as [[https://www.linusakesson.net/programming/brainfuck/quine.bf][Small quine size]] are not possible to run as you can see. This is because I have not implemented wrapping nor negative indexes leading to source code.

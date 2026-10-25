@@ -4,6 +4,7 @@ use crate::{error::LoxError, interpreter::Value, scanner::Token};
 
 pub type EnvRef = Rc<RefCell<Environment>>;
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Environment {
     pub values: HashMap<String, Value>,
     pub enclosing: Option<EnvRef>,

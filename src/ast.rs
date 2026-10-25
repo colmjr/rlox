@@ -1,6 +1,7 @@
 use crate::scanner::{Literal, Token};
 use std::fmt;
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Assign {
         name: Token,
@@ -26,6 +27,11 @@ pub enum Expr {
     Grouping {
         expression: Box<Expr>,
     },
+    Call {
+        callee: Box<Expr>,
+        paren: Token,
+        arguments: Vec<Expr>,
+    },
     Ternary {
         condition: Box<Expr>,
         then_branch: Box<Expr>,
@@ -36,6 +42,7 @@ pub enum Expr {
     },
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
     Block {
         statements: Vec<Stmt>,
@@ -55,9 +62,18 @@ pub enum Stmt {
         name: Token,
         initializer: Option<Expr>,
     },
+    Return {
+        keyword: Token,
+        value: Option<Expr>,
+    },
     While {
         condition: Expr,
         body: Box<Stmt>,
+    },
+    Function {
+        name: Token,
+        params: Vec<Token>,
+        body: Vec<Stmt>,
     },
     Break,
 }
@@ -100,6 +116,13 @@ impl fmt::Display for Expr {
             }
             Expr::Var { name } => {
                 write!(f, "var {name}")
+            }
+            Expr::Call {
+                callee,
+                paren: _,
+                arguments,
+            } => {
+                write!(f, "({callee} ({arguments:?}))")
             }
         }
     }
