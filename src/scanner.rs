@@ -4,10 +4,10 @@ use std::fmt;
 
 pub struct Scanner<'a> {
     source: &'a [char],
-    tokens: Vec<Token>,
-    start: usize,
-    current: usize,
-    line: usize,
+    tokens: Vec<Token> = Vec::new(),
+    start: usize = 0,
+    current: usize = 0,
+    line: usize = 0,
     keywords: HashMap<&'a str, TokenType>,
 }
 
@@ -144,11 +144,8 @@ impl<'a> Scanner<'a> {
 
         Self {
             source,
-            tokens: Vec::new(),
-            start: 0,
-            current: 0,
-            line: 1,
             keywords: map,
+            ..
         }
     }
 

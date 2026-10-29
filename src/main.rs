@@ -65,7 +65,7 @@ fn run(source: &[char]) -> Result<(), Vec<LoxError>> {
     if !errors.is_empty() {
         return Err(errors);
     }
-    let mut parser = Parser::new(tokens, 0);
+    let mut parser = Parser::new(tokens);
     let expression: Vec<Stmt> = parser.parse()?;
     let mut interpreter = Interpreter::new();
     interpreter.interpret(expression).map_err(|e| vec![e])?;

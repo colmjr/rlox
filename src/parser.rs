@@ -6,12 +6,12 @@ use crate::{
 
 pub struct Parser {
     tokens: Vec<Token>,
-    current: usize,
+    current: usize = 0,
 }
 
 impl Parser {
-    pub fn new(tokens: Vec<Token>, current: usize) -> Self {
-        Self { tokens, current }
+    pub fn new(tokens: Vec<Token>) -> Self {
+        Self { tokens, .. }
     }
 
     pub fn parse(&mut self) -> Result<Vec<Stmt>, Vec<LoxError>> {
