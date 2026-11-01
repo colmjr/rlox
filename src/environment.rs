@@ -36,6 +36,24 @@ impl Environment {
         }
     }
 
+    pub fn get_at(&self, depth: usize, name: &Token) -> Result<Value, LoxError> {
+        if depth == 0 {
+            self.values
+                .get(&name.lexeme)
+                .cloned()
+                .ok_or(LoxError::Runtime {
+                    line: name.line,
+                    message: format!("Undefined variable '{}'.", name.lexeme),
+                })
+        } else {
+            self.enclosing
+                .as_ref()
+                .expect("Resolved depth is too deep")
+                .borrow()
+                .get_at(depth - 1, name)
+        }
+    }
+
     pub fn assign(&mut self, name: Token, value: Value) -> Result<(), LoxError> {
         if let Some(existing) = self.values.get_mut(&name.lexeme) {
             *existing = value;
@@ -49,6 +67,23 @@ impl Environment {
                 message: format!("Undefined variable '{}'.", name.lexeme),
             }),
         }
+    }
+
+    pub fn assign_at(&mut self, depth: usize, name: &Token, value: Value) -> Result<(), LoxError> {
+        if depth == 0 {
+            let val = self.values.get_mut(&name.lexeme).ok_or(LoxError::Runtime {
+                line: name.line,
+                message: format!("Undefined variable '{}'.", name.lexeme),
+            })?;
+            *val = value;
+            return Ok(());
+        }
+        self.enclosing
+            .as_ref()
+            .expect("Resolved depth is too deep")
+            .borrow_mut()
+            .assign_at(depth - 1, name, value)?;
+        Ok(())
     }
 
     pub fn enclosed(parent: EnvRef) -> Self {

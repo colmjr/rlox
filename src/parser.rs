@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Expr, Stmt},
+    ast::{Expr, ExprId, ExprType, Stmt},
     error::LoxError,
     scanner::{Literal, Token, TokenType},
 };
@@ -7,6 +7,7 @@ use crate::{
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize = 0,
+    next_expr_id: usize = 0,
 }
 
 impl Parser {
@@ -44,12 +45,12 @@ impl Parser {
         if self.match_type(&[TokenType::Equal]) {
             let equals = self.previous().expect("Should be previous.");
             let value = self.assignment()?;
-            match expr {
-                Expr::Var { name } => {
-                    return Ok(Expr::Assign {
-                        name,
+            match &expr.typ {
+                ExprType::Var { name } => {
+                    return Ok(self.make_expr(ExprType::Assign {
+                        name: name.clone(),
                         value: Box::new(value),
-                    });
+                    }));
                 }
                 _ => {
                     return Err(LoxError::Parse {
@@ -68,11 +69,11 @@ impl Parser {
         while self.match_type(&[TokenType::Or]) {
             let operator = self.previous().expect("Should be previous.");
             let right = self.and()?;
-            expr = Expr::Logical {
+            expr = self.make_expr(ExprType::Logical {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-            };
+            });
         }
         Ok(expr)
     }
@@ -83,11 +84,11 @@ impl Parser {
         while self.match_type(&[TokenType::And]) {
             let operator = self.previous().expect("Should be previous");
             let right = self.ternary()?;
-            expr = Expr::Logical {
+            expr = self.make_expr(ExprType::Logical {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-            };
+            });
         }
         Ok(expr)
     }
@@ -98,11 +99,11 @@ impl Parser {
             let then_branch: Expr = self.expression()?;
             self.consume(TokenType::Colon, "expect ':' in ternary")?;
             let else_branch: Expr = self.ternary()?;
-            expr = Expr::Ternary {
+            expr = self.make_expr(ExprType::Ternary {
                 condition: Box::new(expr),
                 then_branch: Box::new(then_branch),
                 else_branch: Box::new(else_branch),
-            };
+            });
         }
         Ok(expr)
     }
@@ -112,11 +113,11 @@ impl Parser {
         while self.match_type(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let operator: Token = self.previous().expect("must be token");
             let right: Expr = self.comparison()?;
-            expr = Expr::Binary {
+            expr = self.make_expr(ExprType::Binary {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-            };
+            });
         }
         Ok(expr)
     }
@@ -131,11 +132,11 @@ impl Parser {
         ]) {
             let operator: Token = self.previous().expect("must be token");
             let right: Expr = self.term()?;
-            expr = Expr::Binary {
+            expr = self.make_expr(ExprType::Binary {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-            }
+            })
         }
         Ok(expr)
     }
@@ -145,11 +146,11 @@ impl Parser {
         while self.match_type(&[TokenType::Minus, TokenType::Plus]) {
             let operator: Token = self.previous().expect("must be token");
             let right: Expr = self.factor()?;
-            expr = Expr::Binary {
+            expr = self.make_expr(ExprType::Binary {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-            }
+            })
         }
         Ok(expr)
     }
@@ -159,11 +160,11 @@ impl Parser {
         while self.match_type(&[TokenType::Slash, TokenType::Star]) {
             let operator: Token = self.previous().expect("must be token");
             let right: Expr = self.unary()?;
-            expr = Expr::Binary {
+            expr = self.make_expr(ExprType::Binary {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-            }
+            })
         }
         Ok(expr)
     }
@@ -172,10 +173,10 @@ impl Parser {
         if self.match_type(&[TokenType::Bang, TokenType::Minus]) {
             let operator: Token = self.previous().expect("must be token");
             let right: Expr = self.unary()?;
-            return Ok(Expr::Unary {
+            return Ok(self.make_expr(ExprType::Unary {
                 operator,
                 right: Box::new(right),
-            });
+            }));
         }
         self.call()
     }
@@ -211,53 +212,53 @@ impl Parser {
             }
         }
         let paren = self.consume(TokenType::RightParen, "Expect ')' after arguments")?;
-        Ok(Expr::Call {
+        Ok(self.make_expr(ExprType::Call {
             callee: Box::new(callee),
             paren,
             arguments,
-        })
+        }))
     }
     fn primary(&mut self) -> Result<Expr, LoxError> {
         if self.match_type(&[TokenType::False]) {
-            return Ok(Expr::Literal {
+            return Ok(self.make_expr(ExprType::Literal {
                 value: Literal::Bool(false),
-            });
+            }));
         }
 
         if self.match_type(&[TokenType::True]) {
-            return Ok(Expr::Literal {
+            return Ok(self.make_expr(ExprType::Literal {
                 value: Literal::Bool(true),
-            });
+            }));
         }
 
         if self.match_type(&[TokenType::Nil]) {
-            return Ok(Expr::Literal {
+            return Ok(self.make_expr(ExprType::Literal {
                 value: Literal::Nil,
-            });
+            }));
         }
 
         if self.match_type(&[TokenType::Number, TokenType::String]) {
-            return Ok(Expr::Literal {
+            return Ok(self.make_expr(ExprType::Literal {
                 value: self
                     .previous()
                     .expect("must be previous")
                     .literal
                     .expect("number, string tokens always carry a literal"),
-            });
+            }));
         }
 
         if self.match_type(&[TokenType::LeftParen]) {
             let expr: Expr = self.expression()?;
             self.consume(TokenType::RightParen, "Expect '(' after expression")?;
-            return Ok(Expr::Grouping {
+            return Ok(self.make_expr(ExprType::Grouping {
                 expression: Box::new(expr),
-            });
+            }));
         }
 
         if self.match_type(&[TokenType::Identifier]) {
-            return Ok(Expr::Var {
+            return Ok(self.make_expr(ExprType::Var {
                 name: self.previous().expect("Must be previous"),
-            });
+            }));
         }
 
         Err(LoxError::Parse {
@@ -267,8 +268,8 @@ impl Parser {
     }
 
     fn match_type(&mut self, types: &[TokenType]) -> bool {
-        for r#type in types {
-            if self.check(r#type) {
+        for typ in types {
+            if self.check(typ) {
                 self.advance(); // consumes
                 return true;
             }
@@ -284,12 +285,12 @@ impl Parser {
             .expect("after advancing, we should be able to see previous")
     }
 
-    fn check(&self, r#type: &TokenType) -> bool {
+    fn check(&self, typ: &TokenType) -> bool {
         if self.is_at_end() {
             return false;
         }
         match self.peek() {
-            Some(token) => &token.token_type == r#type,
+            Some(token) => &token.token_type == typ,
             None => false,
         }
     }
@@ -312,8 +313,8 @@ impl Parser {
         }
     }
 
-    fn consume(&mut self, r#type: TokenType, message: &str) -> Result<Token, LoxError> {
-        if self.check(&r#type) {
+    fn consume(&mut self, typ: TokenType, message: &str) -> Result<Token, LoxError> {
+        if self.check(&typ) {
             return Ok(self.advance());
         }
         let line = self.peek().expect("should be EOF").line;
@@ -414,9 +415,9 @@ impl Parser {
         }
 
         if condition.is_none() {
-            condition = Some(Expr::Literal {
+            condition = Some(self.make_expr(ExprType::Literal {
                 value: Literal::Bool(true),
-            })
+            }))
         }
 
         body = Stmt::While {
@@ -554,5 +555,11 @@ impl Parser {
         self.consume(TokenType::Semicolon, "Expect ';' after return value")?;
 
         Ok(Stmt::Return { keyword, value })
+    }
+
+    fn make_expr(&mut self, typ: ExprType) -> Expr {
+        let id = ExprId(self.next_expr_id);
+        self.next_expr_id += 1;
+        Expr { typ, id }
     }
 }

@@ -1,7 +1,7 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    ast::{Expr, Stmt},
+    ast::{Expr, ExprId, ExprType, Stmt},
     callable::{Callable, Clock, LoxFunction},
     environment::{EnvRef, Environment},
     error::LoxError,
@@ -53,6 +53,7 @@ pub struct Interpreter {
     // current environment
     pub environment: EnvRef,
     pub globals: EnvRef,
+    pub locals: HashMap<ExprId, usize>,
 }
 
 impl Default for Interpreter {
@@ -68,9 +69,11 @@ impl Interpreter {
         globals
             .borrow_mut()
             .define("clock".to_string(), Value::Callable(Rc::new(Clock)));
+        let locals = HashMap::new();
         Self {
             globals,
             environment,
+            locals,
         }
     }
     pub fn execute(&mut self, stmt: &Stmt) -> Result<Flow, LoxError> {
@@ -146,22 +149,32 @@ impl Interpreter {
     }
 
     pub fn eval(&mut self, expr: &Expr) -> Result<Value, LoxError> {
-        match expr {
-            Expr::Assign { name, value } => {
+        match &expr.typ {
+            ExprType::Assign { name, value } => {
                 let value = self.eval(value)?;
+                let distance = self.locals.get(&expr.id);
+                if let Some(distance) = distance {
+                    self.environment
+                        .borrow_mut()
+                        .assign_at(*distance, name, value.clone())?;
+                } else {
+                    self.globals
+                        .borrow_mut()
+                        .assign(name.clone(), value.clone())?;
+                }
                 self.environment
                     .borrow_mut()
                     .assign(name.clone(), value.clone())?;
                 Ok(value)
             }
-            Expr::Literal { value } => match value {
+            ExprType::Literal { value } => match value {
                 Literal::String(s) => Ok(Value::String(s.clone())),
                 Literal::Bool(b) => Ok(Value::Bool(*b)),
                 Literal::Number(num) => Ok(Value::Number(*num)),
                 Literal::Nil => Ok(Value::Nil),
             },
-            Expr::Grouping { expression } => self.eval(expression),
-            Expr::Unary { operator, right } => {
+            ExprType::Grouping { expression } => self.eval(expression),
+            ExprType::Unary { operator, right } => {
                 let right = self.eval(right)?;
                 match operator.token_type {
                     TokenType::Minus => match right {
@@ -175,7 +188,7 @@ impl Interpreter {
                     _ => unreachable!("Parser only makes unary nodes with bang and minus"),
                 }
             }
-            Expr::Logical {
+            ExprType::Logical {
                 left,
                 operator,
                 right,
@@ -195,7 +208,7 @@ impl Interpreter {
 
                 self.eval(right)
             }
-            Expr::Binary {
+            ExprType::Binary {
                 left,
                 operator,
                 right,
@@ -271,7 +284,7 @@ impl Interpreter {
                     _ => unreachable!("Parser only gives binary nodes in normal token types"),
                 }
             }
-            Expr::Ternary {
+            ExprType::Ternary {
                 condition,
                 then_branch,
                 else_branch,
@@ -283,8 +296,14 @@ impl Interpreter {
                     self.eval(else_branch)
                 }
             }
-            Expr::Var { name } => self.environment.borrow().get(name),
-            Expr::Call {
+            ExprType::Var { name } => {
+                if let Some(&depth) = self.locals.get(&expr.id) {
+                    return self.environment.borrow().get_at(depth, name);
+                } else {
+                    return self.globals.borrow().get(name);
+                };
+            }
+            ExprType::Call {
                 callee,
                 paren,
                 arguments,
@@ -344,6 +363,10 @@ impl Interpreter {
         })();
         self.environment = prev;
         result
+    }
+
+    pub fn resolve(&mut self, id: ExprId, depth: usize) {
+        self.locals.insert(id, depth);
     }
 }
 

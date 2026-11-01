@@ -1,5 +1,6 @@
 use rlox::{
-    ast::Stmt, error::LoxError, interpreter::Interpreter, parser::Parser, scanner::Scanner,
+    ast::Stmt, error::LoxError, interpreter::Interpreter, parser::Parser, resolver::Resolver,
+    scanner::Scanner,
 };
 
 use std::{io::Write, process::ExitCode};
@@ -66,8 +67,10 @@ fn run(source: &[char]) -> Result<(), Vec<LoxError>> {
         return Err(errors);
     }
     let mut parser = Parser::new(tokens);
-    let expression: Vec<Stmt> = parser.parse()?;
+    let statements: Vec<Stmt> = parser.parse()?;
     let mut interpreter = Interpreter::new();
-    interpreter.interpret(expression).map_err(|e| vec![e])?;
+    let mut resolver = Resolver::new(&mut interpreter);
+    resolver.resolve_stmts(&statements).map_err(|e| vec![e])?;
+    interpreter.interpret(statements).map_err(|e| vec![e])?;
     Ok(())
 }

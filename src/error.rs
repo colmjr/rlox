@@ -3,6 +3,7 @@ use std::fmt;
 pub enum LoxError {
     Scan { line: usize, message: String },
     Parse { line: usize, message: String },
+    Resolve { line: usize, message: String },
     Runtime { line: usize, message: String },
 }
 
@@ -11,6 +12,7 @@ impl fmt::Display for LoxError {
         match self {
             LoxError::Scan { line, message }
             | LoxError::Parse { line, message }
+            | LoxError::Resolve { line, message }
             | LoxError::Runtime { line, message } => write!(f, "[line {line}] Error: {message}"),
         }
     }

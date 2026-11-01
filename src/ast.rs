@@ -2,7 +2,16 @@ use crate::scanner::{Literal, Token};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr {
+pub struct Expr {
+    pub typ: ExprType,
+    pub id: ExprId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExprId(pub usize);
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExprType {
     Assign {
         name: Token,
         value: Box<Expr>,
@@ -80,44 +89,50 @@ pub enum Stmt {
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.typ)
+    }
+}
+
+impl fmt::Display for ExprType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Assign { name, value } => {
+            ExprType::Assign { name, value } => {
                 write!(f, "({} = {})", name.lexeme, value)
             }
-            Expr::Binary {
+            ExprType::Binary {
                 left,
                 operator,
                 right,
             } => {
                 write!(f, "({} {} {})", operator.lexeme, left, right)
             }
-            Expr::Unary { operator, right } => {
+            ExprType::Unary { operator, right } => {
                 write!(f, "({} {})", operator.lexeme, right)
             }
-            Expr::Literal { value } => {
+            ExprType::Literal { value } => {
                 write!(f, "{value}")
             }
-            Expr::Logical {
+            ExprType::Logical {
                 left,
                 operator,
                 right,
             } => {
                 write!(f, "({} {} {})", operator.lexeme, left, right)
             }
-            Expr::Grouping { expression } => {
+            ExprType::Grouping { expression } => {
                 write!(f, "(group {expression})")
             }
-            Expr::Ternary {
+            ExprType::Ternary {
                 condition,
                 then_branch,
                 else_branch,
             } => {
                 write!(f, "({condition} ? {then_branch} : {else_branch})")
             }
-            Expr::Var { name } => {
+            ExprType::Var { name } => {
                 write!(f, "var {name}")
             }
-            Expr::Call {
+            ExprType::Call {
                 callee,
                 paren: _,
                 arguments,
@@ -125,5 +140,11 @@ impl fmt::Display for Expr {
                 write!(f, "({callee} ({arguments:?}))")
             }
         }
+    }
+}
+
+impl Expr {
+    pub fn new(typ: ExprType, id: ExprId) -> Self {
+        Expr { typ, id }
     }
 }
