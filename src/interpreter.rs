@@ -3,9 +3,10 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use crate::{
     ast::{Expr, ExprId, ExprType, Stmt},
     callable::{Callable, Clock, LoxFunction},
+    class::{LoxClass, LoxInstance},
     environment::{EnvRef, Environment},
     error::LoxError,
-    scanner::{Literal, TokenType},
+    scanner::{Literal, Token, TokenType},
 };
 
 #[derive(Debug, Clone)]
@@ -15,6 +16,8 @@ pub enum Value {
     Number(f64),
     String(String),
     Callable(Rc<dyn Callable>),
+    Class(Rc<LoxClass>),
+    Instance(Rc<RefCell<LoxInstance>>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -32,6 +35,8 @@ impl PartialEq for Value {
             (Value::Number(a), Value::Number(b)) => a == b,
             (Value::String(a), Value::String(b)) => a == b,
             (Value::Callable(a), Value::Callable(b)) => Rc::ptr_eq(a, b),
+            (Value::Class(a), Value::Class(b)) => Rc::ptr_eq(a, b),
+            (Value::Instance(a), Value::Instance(b)) => Rc::ptr_eq(a, b),
             _ => false,
         }
     }
@@ -45,6 +50,8 @@ impl std::fmt::Display for Value {
             Value::Bool(b) => write!(f, "{b}"),
             Value::Nil => write!(f, "nil"),
             Value::Callable(_) => write!(f, "Callable(<fn>)"),
+            Value::Class(c) => write!(f, "Class {}", c.name),
+            Value::Instance(instance) => write!(f, "Instance of {}", instance.borrow().class),
         }
     }
 }
@@ -76,6 +83,7 @@ impl Interpreter {
             locals,
         }
     }
+
     pub fn execute(&mut self, stmt: &Stmt) -> Result<Flow, LoxError> {
         match stmt {
             Stmt::Block { statements } => {
@@ -127,9 +135,9 @@ impl Interpreter {
 
                 Ok(Flow::Normal)
             }
-            Stmt::Break => Ok(Flow::Break),
+            Stmt::Break { .. } => Ok(Flow::Break),
             s @ Stmt::Function { name, .. } => {
-                let function = LoxFunction::new(s.clone(), Rc::clone(&self.environment));
+                let function = LoxFunction::new(s.clone(), Rc::clone(&self.environment), false);
                 self.environment
                     .borrow_mut()
                     .define(name.lexeme.clone(), Value::Callable(Rc::new(function)));
@@ -145,6 +153,32 @@ impl Interpreter {
                 };
                 Ok(Flow::Return(value))
             }
+            Stmt::Class { name, methods } => {
+                let mut env = self.environment.borrow_mut();
+                env.define(name.lexeme.clone(), Value::Nil);
+                let mut method_map: HashMap<String, LoxFunction> = HashMap::new();
+                for method in methods {
+                    let Stmt::Function {
+                        name: method_name, ..
+                    } = method
+                    else {
+                        unreachable!("class bodies contain only methods");
+                    };
+
+                    let function = LoxFunction::new(
+                        method.clone(),
+                        Rc::clone(&self.environment),
+                        method_name.lexeme == "init",
+                    );
+                    method_map.insert(method_name.lexeme.clone(), function);
+                }
+
+                let class =
+                    Value::Class(Rc::new(LoxClass::new(name.lexeme.to_string(), method_map)));
+                env.assign(name.clone(), class)?;
+
+                Ok(Flow::Normal)
+            }
         }
     }
 
@@ -152,8 +186,8 @@ impl Interpreter {
         match &expr.typ {
             ExprType::Assign { name, value } => {
                 let value = self.eval(value)?;
-                let distance = self.locals.get(&expr.id);
-                if let Some(distance) = distance {
+
+                if let Some(distance) = self.locals.get(&expr.id) {
                     self.environment
                         .borrow_mut()
                         .assign_at(*distance, name, value.clone())?;
@@ -162,9 +196,7 @@ impl Interpreter {
                         .borrow_mut()
                         .assign(name.clone(), value.clone())?;
                 }
-                self.environment
-                    .borrow_mut()
-                    .assign(name.clone(), value.clone())?;
+
                 Ok(value)
             }
             ExprType::Literal { value } => match value {
@@ -296,13 +328,7 @@ impl Interpreter {
                     self.eval(else_branch)
                 }
             }
-            ExprType::Var { name } => {
-                if let Some(&depth) = self.locals.get(&expr.id) {
-                    return self.environment.borrow().get_at(depth, name);
-                } else {
-                    return self.globals.borrow().get(name);
-                };
-            }
+            ExprType::Var { name } => self.lookup_var(name, expr),
             ExprType::Call {
                 callee,
                 paren,
@@ -314,26 +340,60 @@ impl Interpreter {
                     args.push(self.eval(arg)?);
                 }
 
-                match callee {
-                    Value::Callable(func) => {
-                        if args.len() != func.arity() {
-                            return Err(LoxError::Runtime {
-                                line: paren.line,
-                                message: format!(
-                                    "Expected {} arguments but got {}.",
-                                    func.arity(),
-                                    args.len()
-                                ),
-                            });
-                        }
-                        Ok(func.call(self, args)?)
+                let callable: &dyn Callable = match &callee {
+                    Value::Callable(func) => func.as_ref(),
+                    Value::Class(class) => class,
+
+                    _ => {
+                        return Err(LoxError::Runtime {
+                            line: paren.line,
+                            message: "Can only call classes and functions".to_string(),
+                        });
                     }
-                    _ => Err(LoxError::Runtime {
+                };
+
+                if args.len() != callable.arity() {
+                    return Err(LoxError::Runtime {
                         line: paren.line,
-                        message: "Can only call classes and functions".to_string(),
-                    }),
+                        message: format!(
+                            "Expected {} arguments but got {}.",
+                            callable.arity(),
+                            args.len()
+                        ),
+                    });
                 }
+                callable.call(self, args)
             }
+            ExprType::Get { object, name } => {
+                let o = self.eval(object)?;
+                if let Value::Instance(obj) = o {
+                    return LoxInstance::get(obj, name);
+                }
+
+                Err(LoxError::Runtime {
+                    line: name.line,
+                    message: "Only instances have properties".to_string(),
+                })
+            }
+            ExprType::Set {
+                object,
+                name,
+                value,
+            } => {
+                let object = self.eval(object)?;
+
+                let Value::Instance(instance) = object else {
+                    return Err(LoxError::Runtime {
+                        line: name.line,
+                        message: "Only instances have field".to_string(),
+                    });
+                };
+
+                let value = self.eval(value)?;
+                instance.borrow_mut().set(name.clone(), value.clone());
+                Ok(value)
+            }
+            ExprType::This { keyword } => self.lookup_var(keyword, expr),
         }
     }
 
@@ -367,6 +427,20 @@ impl Interpreter {
 
     pub fn resolve(&mut self, id: ExprId, depth: usize) {
         self.locals.insert(id, depth);
+    }
+
+    fn lookup_var(&self, name: &Token, expr: &Expr) -> Result<Value, LoxError> {
+        if let Some(&depth) = self.locals.get(&expr.id) {
+            self.environment
+                .borrow()
+                .get_at(depth, &name.lexeme)
+                .ok_or_else(|| LoxError::Runtime {
+                    line: name.line,
+                    message: format!("Undefined variable '{}'.", name.lexeme),
+                })
+        } else {
+            self.globals.borrow().get(name)
+        }
     }
 }
 

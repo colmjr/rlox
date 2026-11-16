@@ -36,15 +36,9 @@ impl Environment {
         }
     }
 
-    pub fn get_at(&self, depth: usize, name: &Token) -> Result<Value, LoxError> {
+    pub fn get_at(&self, depth: usize, name: &str) -> Option<Value> {
         if depth == 0 {
-            self.values
-                .get(&name.lexeme)
-                .cloned()
-                .ok_or(LoxError::Runtime {
-                    line: name.line,
-                    message: format!("Undefined variable '{}'.", name.lexeme),
-                })
+            self.values.get(name).cloned()
         } else {
             self.enclosing
                 .as_ref()

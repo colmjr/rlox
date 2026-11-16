@@ -36,6 +36,18 @@ pub enum ExprType {
     Grouping {
         expression: Box<Expr>,
     },
+    Get {
+        object: Box<Expr>,
+        name: Token,
+    },
+    Set {
+        object: Box<Expr>,
+        name: Token,
+        value: Box<Expr>,
+    },
+    This {
+        keyword: Token,
+    },
     Call {
         callee: Box<Expr>,
         paren: Token,
@@ -64,6 +76,10 @@ pub enum Stmt {
         then_branch: Box<Stmt>,
         else_branch: Option<Box<Stmt>>,
     },
+    Class {
+        name: Token,
+        methods: Vec<Stmt>,
+    },
     Print {
         expression: Expr,
     },
@@ -84,7 +100,9 @@ pub enum Stmt {
         params: Vec<Token>,
         body: Vec<Stmt>,
     },
-    Break,
+    Break {
+        keyword: Token,
+    },
 }
 
 impl fmt::Display for Expr {
@@ -138,6 +156,19 @@ impl fmt::Display for ExprType {
                 arguments,
             } => {
                 write!(f, "({callee} ({arguments:?}))")
+            }
+            ExprType::Get { object, name } => {
+                write!(f, "get {object} {name}")
+            }
+            ExprType::Set {
+                object,
+                name,
+                value,
+            } => {
+                write!(f, "set {object} {name} as {value}")
+            }
+            ExprType::This { .. } => {
+                write!(f, "this")
             }
         }
     }

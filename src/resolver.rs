@@ -12,12 +12,22 @@ pub struct Resolver<'a> {
     // bool: whether finished resolving
     scopes: Vec<HashMap<String, bool>>,
     current_func: FunctionType = FunctionType::None,
+	current_class: ClassType = ClassType::None,
+	in_loop: bool = false,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum FunctionType {
     None,
     Function,
+    Initializer,
+    Method,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ClassType {
+    None,
+    Class,
 }
 
 impl<'a> Resolver<'a> {
@@ -76,24 +86,64 @@ impl<'a> Resolver<'a> {
                     });
                 }
                 if let Some(val) = value {
+                    if self.current_func == FunctionType::Initializer {
+                        return Err(LoxError::Resolve {
+                            line: keyword.line,
+                            message: "Can't return a value from an initializer".to_string(),
+                        });
+                    }
                     self.resolve_expr(val)?;
                 }
             }
             Stmt::While { condition, body } => {
                 self.resolve_expr(condition)?;
-                self.resolve_stmt(body)?;
+                let enclosing_loop = self.in_loop;
+                self.in_loop = true;
+                let result = self.resolve_stmt(body);
+                self.in_loop = enclosing_loop;
+                result?;
             }
-            s @ Stmt::Function {
-                name,
-                params: _,
-                body: _,
-            } => {
+            s @ Stmt::Function { name, .. } => {
                 self.declare(name)?;
                 self.define(name);
 
                 self.resolve_function(s, FunctionType::Function)?;
             }
-            Stmt::Break => todo!(),
+            Stmt::Break { keyword } => {
+                if !self.in_loop {
+                    return Err(LoxError::Resolve {
+                        line: keyword.line,
+                        message: "Can't use 'break' outside of a loop.".to_string(),
+                    });
+                }
+            }
+            Stmt::Class { name, methods } => {
+                let enclosing_class = self.current_class;
+                self.current_class = ClassType::Class;
+
+                self.declare(name)?;
+                self.define(name);
+
+                self.begin_scope();
+                self.scopes
+                    .last_mut()
+                    .expect("should be last")
+                    .insert("this".to_string(), true);
+
+                for method in methods {
+                    let mut declaration = FunctionType::Method;
+                    let Stmt::Function { name, .. } = method else {
+                        unreachable!("Method is not Function?")
+                    };
+                    if name.lexeme == "init" {
+                        declaration = FunctionType::Initializer
+                    }
+                    self.resolve_function(method, declaration)?;
+                }
+
+                self.end_scope();
+                self.current_class = enclosing_class;
+            }
         }
         Ok(())
     }
@@ -110,7 +160,7 @@ impl<'a> Resolver<'a> {
         match &expr.typ {
             ExprType::Assign { name, value } => {
                 self.resolve_expr(value)?;
-                self.resolve_local(value, name)?;
+                self.resolve_local(expr, name)?;
             }
             ExprType::Binary {
                 left,
@@ -123,7 +173,7 @@ impl<'a> Resolver<'a> {
             ExprType::Unary { operator: _, right } => {
                 self.resolve_expr(right)?;
             }
-            ExprType::Literal { value: _ } => {}
+            ExprType::Literal { .. } => {}
             ExprType::Logical {
                 left,
                 operator: _,
@@ -170,6 +220,26 @@ impl<'a> Resolver<'a> {
                 }
 
                 self.resolve_local(expr, name)?;
+            }
+            ExprType::Get { object, .. } => {
+                self.resolve_expr(object)?;
+            }
+            ExprType::Set {
+                object,
+                name: _,
+                value,
+            } => {
+                self.resolve_expr(object)?;
+                self.resolve_expr(value)?;
+            }
+            ExprType::This { keyword } => {
+                if self.current_class != ClassType::Class {
+                    return Err(LoxError::Resolve {
+                        line: keyword.line,
+                        message: "Can't use \"this\" outside of a class".to_string(),
+                    });
+                }
+                self.resolve_local(expr, keyword)?;
             }
         }
 

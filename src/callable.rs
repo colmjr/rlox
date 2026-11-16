@@ -6,6 +6,7 @@ use std::{
 
 use crate::{
     ast::Stmt,
+    class::LoxInstance,
     environment::{EnvRef, Environment},
     error::LoxError,
     interpreter::{Flow, Interpreter, Value},
@@ -13,7 +14,7 @@ use crate::{
 
 pub trait Callable: std::fmt::Debug {
     fn call(&self, interpreter: &mut Interpreter, arguments: Vec<Value>)
-    -> Result<Value, LoxError>;
+        -> Result<Value, LoxError>;
     fn arity(&self) -> usize;
 }
 
@@ -21,14 +22,26 @@ pub trait Callable: std::fmt::Debug {
 pub struct LoxFunction {
     declaration: Stmt,
     closure: EnvRef,
+    is_init: bool= false,
 }
 
 impl LoxFunction {
-    pub fn new(declaration: Stmt, closure: EnvRef) -> Self {
+    pub fn new(declaration: Stmt, closure: EnvRef, is_init: bool) -> Self {
         assert!(matches!(&declaration, Stmt::Function { .. }));
         Self {
             declaration,
             closure,
+            is_init,
+        }
+    }
+
+    pub fn bind(&self, instance: Rc<RefCell<LoxInstance>>) -> Self {
+        let mut environment = Environment::enclosed(self.closure.clone());
+        environment.define("this".to_string(), Value::Instance(instance));
+        Self {
+            declaration: self.declaration.clone(),
+            closure: Rc::new(RefCell::new(environment)),
+            is_init: self.is_init,
         }
     }
 }
@@ -59,6 +72,14 @@ impl Callable for LoxFunction {
             environment
                 .borrow_mut()
                 .define(params[i].clone().lexeme, arguments[i].clone());
+        }
+
+        if self.is_init {
+            return Ok(self
+                .closure
+                .borrow()
+                .get_at(0, "this")
+                .expect("A bound initializer must have a 'this' binding"));
         }
 
         match interpreter.execute_block(body, environment)? {

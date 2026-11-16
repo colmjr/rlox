@@ -1,7 +1,10 @@
 use crate::{
     ast::{Expr, ExprId, ExprType, Stmt},
     error::LoxError,
-    scanner::{Literal, Token, TokenType},
+    scanner::{
+        Literal, Token,
+        TokenType::{self, Identifier},
+    },
 };
 
 pub struct Parser {
@@ -48,6 +51,13 @@ impl Parser {
             match &expr.typ {
                 ExprType::Var { name } => {
                     return Ok(self.make_expr(ExprType::Assign {
+                        name: name.clone(),
+                        value: Box::new(value),
+                    }));
+                }
+                ExprType::Get { object, name } => {
+                    return Ok(self.make_expr(ExprType::Set {
+                        object: object.clone(),
                         name: name.clone(),
                         value: Box::new(value),
                     }));
@@ -187,6 +197,12 @@ impl Parser {
         loop {
             if self.match_type(&[TokenType::LeftParen]) {
                 expr = self.finish_call(expr)?;
+            } else if self.match_type(&[TokenType::Dot]) {
+                let name = self.consume(Identifier, "Expect property after '.'")?;
+                expr = self.make_expr(ExprType::Get {
+                    object: Box::new(expr),
+                    name,
+                })
             } else {
                 break;
             }
@@ -244,6 +260,12 @@ impl Parser {
                     .expect("must be previous")
                     .literal
                     .expect("number, string tokens always carry a literal"),
+            }));
+        }
+
+        if self.match_type(&[TokenType::This]) {
+            return Ok(self.make_expr(ExprType::This {
+                keyword: self.previous().expect("must be previous"),
             }));
         }
 
@@ -375,8 +397,9 @@ impl Parser {
             return self.while_statement();
         }
         if self.match_type(&[TokenType::Break]) {
+            let keyword = self.previous().expect("Should be previous");
             self.consume(TokenType::Semicolon, "Expect ';' after 'break'")?;
-            return Ok(Stmt::Break);
+            return Ok(Stmt::Break { keyword });
         }
         self.expression_statement()
     }
@@ -480,6 +503,9 @@ impl Parser {
         if self.match_type(&[TokenType::Fun]) {
             return self.function("function".to_string());
         }
+        if self.match_type(&[TokenType::Class]) {
+            return self.class_declaration();
+        }
         if self.match_type(&[TokenType::Var]) {
             return self.var_declaration();
         }
@@ -561,5 +587,16 @@ impl Parser {
         let id = ExprId(self.next_expr_id);
         self.next_expr_id += 1;
         Expr { typ, id }
+    }
+
+    fn class_declaration(&mut self) -> Result<Stmt, LoxError> {
+        let name = self.consume(TokenType::Identifier, "Expect class name")?;
+        self.consume(TokenType::LeftBrace, "Expect '{' before class body")?;
+        let mut methods: Vec<Stmt> = Vec::new();
+        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+            methods.push(self.function("method".to_string())?);
+        }
+        self.consume(TokenType::RightBrace, "Expect '{' after class body")?;
+        Ok(Stmt::Class { name, methods })
     }
 }

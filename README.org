@@ -6,33 +6,34 @@ This is the implementation of the tree-walk intepreter in [[https://craftinginte
 The current grammar structure expressed in [[https://en.wikipedia.org/wiki/Extended_Backus–Naur_form][EBNR]] is as follows(I do prefer whitespace concatenation over using ',' to symbolize concatenation but I use mostly normal EBNR for the rest in contrast to the Crafting Interpreter dialect). I use all capitals to show non-terminals:
 
 #+begin_src ebnf
-program = { declaration } EOF ;
-declaration = var_decl | fun_decl | statement ;
-statement = expr_stmt | print_stmt | if_stmt | block | while_stmt | for_stmt | return_stmt ;
-expr_stmt = expression ";" ;
-print_stmt = "print" expression ";" ;
-if_stmt = "if" "(" expression ")" statement ["else" statement] ;
-block = "{" {declaration} "}" ;
-while_stmt = "while" "(" expression ")" statement ;
-for_stmt = "for" "(" ( var_decl | expr_stmt | ";" ) [ expression ] ";" [expression] ")" statement ;
-return_stmt = "return" [expression] ";" ;
-var_decl = "var" IDENTIFIER [ "=" expression ] ";" ;
-fun_decl = "fun" function ;
-function = IDENTIFIER "(" [parameters] ")" block ;
-parameters = IDENTIFIER {"," IDENTIFIER } ;
-expression = assignment ;
-assignment = IDENTIFIER  "=" assignment | logic_or ;
-logic_or = logic_and { "or" logic_and } ;
-logic_and = ternary { "and" ternary } ;
-ternary = equality [ "?" expression ":" ternary ] ;
-equality = comparison { ("!=" | "==") comparison } ;
-comparison = term { (">=" | ">" | "<" | "<=") term } ;
-term = factor { ("+" | "-") factor } ;
-factor = unary { ("*" | "/" ) unary } ;
-unary = (("!" | "-") unary) | call ;
-call = primary { ("(" [ arguments ] ")") } ;
-arguments = expression { "," expression } ;
-primary = nonterminal | ("(" expression ")")
+  program = { declaration } EOF ;
+  declaration = var_decl | fun_decl | class_decl | statement ;
+  statement = expr_stmt | print_stmt | if_stmt | block | while_stmt | for_stmt | return_stmt ;
+  expr_stmt = expression ";" ;
+  print_stmt = "print" expression ";" ;
+  if_stmt = "if" "(" expression ")" statement ["else" statement] ;
+  block = "{" {declaration} "}" ;
+  while_stmt = "while" "(" expression ")" statement ;
+  for_stmt = "for" "(" ( var_decl | expr_stmt | ";" ) [ expression ] ";" [expression] ")" statement ;
+  return_stmt = "return " [expression] ";" ;
+  var_decl = "var" IDENTIFIER [ "=" expression ] ";" ;
+  class_decl = "class" IDENTIFIER "{" {function} "}" ;
+  fun_decl = "fun" function ;
+  function = IDENTIFIER "(" [parameters] ")" block ;
+  parameters = IDENTIFIER {"," IDENTIFIER } ;
+  expression = assignment ;
+  assignment = [ call "." ] IDENTIFIER  "=" assignment | logic_or ;
+  logic_or = logic_and { "or" logic_and } ;
+  logic_and = ternary { "and" ternary } ;
+  ternary = equality [ "?" expression ":" ternary ] ;
+  equality = comparison { ("!=" | "==") comparison } ;
+  comparison = term { (">=" | ">" | "<" | "<=") term } ;
+  term = factor { ("+" | "-") factor } ;
+  factor = unary { ("*" | "/" ) unary } ;
+  unary = (("!" | "-") unary) | call ;
+  call = primary { ("(" [ arguments ] ")") "." IDENTIFIER } ;
+  arguments = expression { "," expression } ;
+  primary = nonterminal | ("(" expression ")")
 #+end_src
 
 * Usage
@@ -47,3 +48,18 @@ cargo run -- test.lox # runs on test file inside repo
 Read test.lox to see what the rudimentary syntax looks like in action.
 * Design Caveats
 - Break breaks out of for loops and while loops, and propagates out of if statements.
+- Just like the original book, we treat methods as first class functions. Using an example out of the book:
+  #+begin_src lox
+    var m = object.method;
+    m(argument); // valid
+    class Box {}
+
+    fun notMethod(argument) {
+    print "called function with " + argument;
+    }
+
+    var box = Box();
+    box.function = notMethod;
+    box.function("argument") // valid
+  #+end_src
+
