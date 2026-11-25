@@ -40,6 +40,10 @@ pub enum ExprType {
         object: Box<Expr>,
         name: Token,
     },
+    Super {
+        keyword: Token,
+        method: Token,
+    },
     Set {
         object: Box<Expr>,
         name: Token,
@@ -78,6 +82,7 @@ pub enum Stmt {
     },
     Class {
         name: Token,
+        superclass: Option<Expr>,
         methods: Vec<Stmt>,
     },
     Print {
@@ -169,6 +174,9 @@ impl fmt::Display for ExprType {
             }
             ExprType::This { .. } => {
                 write!(f, "this")
+            }
+            ExprType::Super { keyword: _, method } => {
+                write!(f, "super {method}")
             }
         }
     }

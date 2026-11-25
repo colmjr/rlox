@@ -153,9 +153,41 @@ impl Interpreter {
                 };
                 Ok(Flow::Return(value))
             }
-            Stmt::Class { name, methods } => {
-                let mut env = self.environment.borrow_mut();
-                env.define(name.lexeme.clone(), Value::Nil);
+            Stmt::Class {
+                name,
+                superclass,
+                methods,
+            } => {
+                let superclass: Option<Rc<LoxClass>> = if let Some(expr) = superclass {
+                    let ExprType::Var {
+                        name: superclass_name,
+                    } = &expr.typ
+                    else {
+                        unreachable!("parser ensures that superclass is var")
+                    };
+                    match self.eval(expr)? {
+                        Value::Class(class) => Some(class),
+                        _ => {
+                            return Err(LoxError::Runtime {
+                                line: superclass_name.line,
+                                message: "Superclass must be a class.".to_string(),
+                            })
+                        }
+                    }
+                } else {
+                    None
+                };
+
+                self.environment
+                    .borrow_mut()
+                    .define(name.lexeme.clone(), Value::Nil);
+
+                let enclosing = Rc::clone(&self.environment);
+                if let Some(superclass) = &superclass {
+                    let mut environment = Environment::enclosed(Rc::clone(&enclosing));
+                    environment.define("super".to_string(), Value::Class(Rc::clone(superclass)));
+                    self.environment = Rc::new(RefCell::new(environment));
+                }
                 let mut method_map: HashMap<String, LoxFunction> = HashMap::new();
                 for method in methods {
                     let Stmt::Function {
@@ -173,9 +205,16 @@ impl Interpreter {
                     method_map.insert(method_name.lexeme.clone(), function);
                 }
 
-                let class =
-                    Value::Class(Rc::new(LoxClass::new(name.lexeme.to_string(), method_map)));
-                env.assign(name.clone(), class)?;
+                let class = Value::Class(Rc::new(LoxClass::new(
+                    name.lexeme.to_string(),
+                    superclass.clone(),
+                    method_map,
+                )));
+
+                if superclass.is_some() {
+                    self.environment = enclosing;
+                }
+                self.environment.borrow_mut().assign(name.clone(), class)?;
 
                 Ok(Flow::Normal)
             }
@@ -394,6 +433,34 @@ impl Interpreter {
                 Ok(value)
             }
             ExprType::This { keyword } => self.lookup_var(keyword, expr),
+            ExprType::Super { keyword, method } => {
+                let Value::Class(superclass) = self.lookup_var(keyword, expr)? else {
+                    unreachable!("super must refer to a class")
+                };
+
+                let distance = self
+                    .locals
+                    .get(&expr.id)
+                    .expect("Resolver should resolve expr");
+                let instance = self
+                    .environment
+                    .borrow()
+                    .get_at(*distance, "this")
+                    .expect("Should be this");
+
+                let Value::Instance(instance) = instance else {
+                    unreachable!("'this' must be an instance");
+                };
+                let Some(method) = superclass.find_method(&method.lexeme) else {
+                    return Err(LoxError::Runtime {
+                        line: keyword.line,
+                        message: format!("Undefined property '{}'", method.lexeme),
+                    });
+                };
+
+                let bound = method.bind(instance);
+                Ok(Value::Callable(Rc::new(bound)))
+            }
         }
     }
 

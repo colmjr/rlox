@@ -28,6 +28,7 @@ enum FunctionType {
 enum ClassType {
     None,
     Class,
+    Subclass,
 }
 
 impl<'a> Resolver<'a> {
@@ -117,12 +118,44 @@ impl<'a> Resolver<'a> {
                     });
                 }
             }
-            Stmt::Class { name, methods } => {
+            Stmt::Class {
+                name,
+                methods,
+                superclass,
+            } => {
                 let enclosing_class = self.current_class;
                 self.current_class = ClassType::Class;
 
                 self.declare(name)?;
                 self.define(name);
+
+                // checks for self inheritance
+                if let Some(superclass) = superclass {
+                    self.current_class = ClassType::Subclass;
+                    let ExprType::Var {
+                        name: superclass_name,
+                    } = &superclass.typ
+                    else {
+                        unreachable!("parser unsures this exprtype is a subclass var")
+                    };
+
+                    if name.lexeme == superclass_name.lexeme {
+                        return Err(LoxError::Resolve {
+                            line: superclass_name.line,
+                            message: "A class cannot inherit itself".to_string(),
+                        });
+                    }
+
+                    self.resolve_expr(superclass)?;
+                }
+
+                if superclass.is_some() {
+                    self.begin_scope();
+                    self.scopes
+                        .last_mut()
+                        .expect("should be last")
+                        .insert("super".to_string(), true);
+                }
 
                 self.begin_scope();
                 self.scopes
@@ -142,6 +175,11 @@ impl<'a> Resolver<'a> {
                 }
 
                 self.end_scope();
+
+                if superclass.is_some() {
+                    self.end_scope();
+                }
+
                 self.current_class = enclosing_class;
             }
         }
@@ -237,6 +275,20 @@ impl<'a> Resolver<'a> {
                     return Err(LoxError::Resolve {
                         line: keyword.line,
                         message: "Can't use \"this\" outside of a class".to_string(),
+                    });
+                }
+                self.resolve_local(expr, keyword)?;
+            }
+            ExprType::Super { keyword, method: _ } => {
+                if self.current_class == ClassType::None {
+                    return Err(LoxError::Resolve {
+                        line: keyword.line,
+                        message: "Can't use 'super' outside of a class.".to_string(),
+                    });
+                } else if self.current_class == ClassType::Class {
+                    return Err(LoxError::Resolve {
+                        line: keyword.line,
+                        message: "Can't use 'super' in a class with no superclass.".to_string(),
                     });
                 }
                 self.resolve_local(expr, keyword)?;

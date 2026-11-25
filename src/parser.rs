@@ -263,6 +263,13 @@ impl Parser {
             }));
         }
 
+        if self.match_type(&[TokenType::Super]) {
+            let keyword = self.previous().expect("Should be previous.");
+            self.consume(TokenType::Dot, "Expect '.' after super.")?;
+            let method = self.consume(TokenType::Identifier, "Expect superclass method name.")?;
+            return Ok(self.make_expr(ExprType::Super { keyword, method }));
+        }
+
         if self.match_type(&[TokenType::This]) {
             return Ok(self.make_expr(ExprType::This {
                 keyword: self.previous().expect("must be previous"),
@@ -591,12 +598,31 @@ impl Parser {
 
     fn class_declaration(&mut self) -> Result<Stmt, LoxError> {
         let name = self.consume(TokenType::Identifier, "Expect class name")?;
+
+        let superclass = if self.match_type(&[TokenType::Less]) {
+            self.consume(TokenType::Identifier, "Expect superclass name.")?;
+            let id = ExprId(self.next_expr_id);
+            self.next_expr_id += 1;
+            Some(Expr::new(
+                ExprType::Var {
+                    name: self.previous().expect("Should be previous."),
+                },
+                id,
+            ))
+        } else {
+            None
+        };
+
         self.consume(TokenType::LeftBrace, "Expect '{' before class body")?;
         let mut methods: Vec<Stmt> = Vec::new();
         while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
             methods.push(self.function("method".to_string())?);
         }
         self.consume(TokenType::RightBrace, "Expect '{' after class body")?;
-        Ok(Stmt::Class { name, methods })
+        Ok(Stmt::Class {
+            name,
+            superclass,
+            methods,
+        })
     }
 }

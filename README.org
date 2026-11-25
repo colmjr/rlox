@@ -17,7 +17,7 @@ The current grammar structure expressed in [[https://en.wikipedia.org/wiki/Exten
   for_stmt = "for" "(" ( var_decl | expr_stmt | ";" ) [ expression ] ";" [expression] ")" statement ;
   return_stmt = "return " [expression] ";" ;
   var_decl = "var" IDENTIFIER [ "=" expression ] ";" ;
-  class_decl = "class" IDENTIFIER "{" {function} "}" ;
+  class_decl = "class" IDENTIFIER [ "<" IDENTIFIER ] "{" {function} "}" ;
   fun_decl = "fun" function ;
   function = IDENTIFIER "(" [parameters] ")" block ;
   parameters = IDENTIFIER {"," IDENTIFIER } ;
@@ -33,7 +33,8 @@ The current grammar structure expressed in [[https://en.wikipedia.org/wiki/Exten
   unary = (("!" | "-") unary) | call ;
   call = primary { ("(" [ arguments ] ")") "." IDENTIFIER } ;
   arguments = expression { "," expression } ;
-  primary = nonterminal | ("(" expression ")")
+  primary = nonterminal | ("(" expression ")");
+  nonterminal = "true" | "false" | "nil" | "this" | NUMBER | STRING | IDENTIFIER | "super" "." IDENTIFIER ;
 #+end_src
 
 * Usage

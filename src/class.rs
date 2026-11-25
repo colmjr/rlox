@@ -10,6 +10,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct LoxClass {
     pub name: String,
+    pub superclass: Option<Rc<LoxClass>>,
     pub methods: HashMap<String, LoxFunction>,
 }
 
@@ -32,7 +33,7 @@ impl Callable for Rc<LoxClass> {
         arguments: Vec<Value>,
     ) -> Result<Value, LoxError> {
         let instance = Rc::new(RefCell::new(LoxInstance::new(Rc::clone(self))));
-        let initializer = self.find_method("init".to_string());
+        let initializer = self.find_method("init");
         if let Some(init) = initializer {
             init.bind(Rc::clone(&instance))
                 .call(interpreter, arguments)?;
@@ -41,7 +42,7 @@ impl Callable for Rc<LoxClass> {
     }
 
     fn arity(&self) -> usize {
-        let initializer = self.find_method("init".to_string());
+        let initializer = self.find_method("init");
         if let Some(init) = initializer {
             return init.arity();
         }
@@ -50,12 +51,23 @@ impl Callable for Rc<LoxClass> {
 }
 
 impl LoxClass {
-    pub fn new(name: String, methods: HashMap<String, LoxFunction>) -> Self {
-        Self { name, methods }
+    pub fn new(
+        name: String,
+        superclass: Option<Rc<LoxClass>>,
+        methods: HashMap<String, LoxFunction>,
+    ) -> Self {
+        Self {
+            name,
+            superclass,
+            methods,
+        }
     }
 
-    pub fn find_method(&self, name: String) -> Option<LoxFunction> {
-        self.methods.get(&name).cloned()
+    pub fn find_method(&self, name: &str) -> Option<LoxFunction> {
+        self.methods
+            .get(name)
+            .cloned()
+            .or_else(|| self.superclass.as_ref().and_then(|s| s.find_method(name)))
     }
 }
 
@@ -75,7 +87,7 @@ impl LoxInstance {
                 return Ok(value.clone());
             }
 
-            borrowed.class.find_method(name.lexeme.clone())
+            borrowed.class.find_method(&name.lexeme)
         };
 
         if let Some(method) = method {
